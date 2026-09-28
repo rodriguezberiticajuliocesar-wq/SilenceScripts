@@ -2935,6 +2935,7 @@ end
 tabs.teleport:AddLabel("Gyms:")
 
 tabs.teleport.GymLocations = {
+	{name = "Overcharged Gym", pos = CFrame.new(-2941.766, 151.797, 4994.552)},
 	{name = "Industrial gym", pos = CFrame.new(-5254.681641, 58.342850, 4931.850586)},
 	{name = "Jungle Gym", pos = CFrame.new(-8543, 6.8, 2400)},
 	{name = "Muscle King Gym", pos = CFrame.new(-8665.4, 17.21, -5792.9)},
