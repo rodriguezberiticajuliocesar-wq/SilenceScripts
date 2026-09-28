@@ -2209,12 +2209,14 @@ tabs.boss.Data = {
 	ContinueTraining = true,
 	Phase = "Waiting",
 	TrainingSnapshot = nil,
-	OrbitAngle = 0,
-	OrbitRadius = 9,
-	OrbitHeight = 5,
-	OrbitSpeed = 0.45,
 	PunchInterval = 0.3,
-	LastPunch = 0
+	LastPunch = 0,
+	AttackSequence = nil,
+	EvadeUntil = 0,
+	EvadeDistance = 230,
+	PunchBehindDistance = 45,
+	StompHealthThreshold = 0.35,
+	DodgeStomps = false
 }
 
 tabs.boss.findActiveBoss = function(model, stats, health, maxHealth, hitbox)
@@ -2265,6 +2267,23 @@ tabs.boss.formatCountdown = function(seconds, hours, minutes)
 	return string.format("%dh %dmin %ds", hours, minutes, seconds)
 end
 
+tabs.boss.leaveExerciseMachine = function(character, humanoid, root)
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	if not humanoid or humanoid.Health <= 0 then return end
+
+	pcall(function()
+		services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+		humanoid.Sit = false
+		humanoid.Jump = true
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		if root then root.AssemblyLinearVelocity = Vector3.new(0, math.max(root.AssemblyLinearVelocity.Y, 50), 0) end
+	end)
+	pcall(function() services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game) end)
+	task.wait(0.2)
+end
+
 tabs.boss.pauseTraining = function()
 	if tabs.boss.Data.TrainingSnapshot then return end
 	tabs.boss.Data.TrainingSnapshot = {
@@ -2288,6 +2307,7 @@ tabs.boss.pauseTraining = function()
 	if tabs.boss.Data.TrainingSnapshot.Tool then tabs.farming.ToolExerciseSwitch:Set(false) end
 	if tabs.boss.Data.TrainingSnapshot.Squat then tabs.farming.SquatExerciseSwitch:Set(false) end
 	if tabs.boss.Data.TrainingSnapshot.Lift then tabs.farming.LiftExerciseSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Squat or tabs.boss.Data.TrainingSnapshot.Lift then tabs.boss.leaveExerciseMachine() end
 	if tabs.boss.Data.TrainingSnapshot.AutoRep then tabs.farming.AutoRepSwitch:Set(false) end
 	if tabs.boss.Data.TrainingSnapshot.Rock then tabs.farming.RockSwitch:Set(false) end
 end
@@ -2309,7 +2329,7 @@ tabs.boss.resumeTraining = function(snapshot)
 	end
 end
 
-tabs.boss.getOrbitPosition = function(model, hitbox, head)
+tabs.boss.getBossHeadPosition = function(model, hitbox, head)
 	head = model:FindFirstChild("Head", true) or model:FindFirstChild("head", true)
 	if head and head:IsA("BasePart") then return head.Position end
 	if head and head:IsA("Bone") then return head.WorldPosition end
@@ -2334,23 +2354,73 @@ tabs.boss.getAliveCharacter = function(generation, timeout, startedAt, character
 		or (timeout and os.clock() - startedAt >= timeout)
 end
 
-tabs.boss.attack = function(model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position)
+tabs.boss.evadeAttack = function(model, hitbox, root, humanoid, sequence, attackKind, attackCFrame, impactTime, direction, safePosition, center)
+	sequence = model:GetAttribute("BossAttackSequence")
+	attackKind = model:GetAttribute("BossAttackKind")
+	attackCFrame = model:GetAttribute("BossAttackCFrame")
+	impactTime = model:GetAttribute("BossAttackImpactTime")
+
+	if typeof(sequence) == "number" and sequence ~= tabs.boss.Data.AttackSequence then
+		tabs.boss.Data.AttackSequence = sequence
+		if typeof(attackKind) == "string" and typeof(attackCFrame) == "CFrame" and typeof(impactTime) == "number" then
+			tabs.boss.Data.EvadeUntil = impactTime + 0.6
+		end
+	end
+
+	if typeof(attackCFrame) ~= "CFrame" or services.Workspace:GetServerTimeNow() > tabs.boss.Data.EvadeUntil then
+		return
+	end
+
+	attackKind = string.lower(tostring(attackKind or ""))
+	if string.find(attackKind, "punch", 1, true) then
+		center = tabs.boss.getBossHeadPosition(model, hitbox)
+		direction = Vector3.new(attackCFrame.LookVector.X, 0, attackCFrame.LookVector.Z)
+		if direction.Magnitude < 1 then direction = Vector3.new(hitbox.CFrame.LookVector.X, 0, hitbox.CFrame.LookVector.Z) end
+		if direction.Magnitude < 1 then direction = Vector3.new(0, 0, 1) end
+		safePosition = center - direction.Unit * tabs.boss.Data.PunchBehindDistance
+		root.CFrame = CFrame.lookAt(safePosition, center)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+		tabs.boss.StatusLabel.Text = "Status: Dodging Punch"
+		return "Punch"
+	end
+
+	if not string.find(attackKind, "stomp", 1, true) then return end
+	if humanoid.Health / math.max(humanoid.MaxHealth, 1) <= tabs.boss.Data.StompHealthThreshold then
+		tabs.boss.Data.DodgeStomps = true
+	end
+	if not tabs.boss.Data.DodgeStomps then return end
+
+	direction = Vector3.new(root.Position.X - attackCFrame.Position.X, 0, root.Position.Z - attackCFrame.Position.Z)
+	if direction.Magnitude < 1 then
+		direction = Vector3.new(-attackCFrame.LookVector.X, 0, -attackCFrame.LookVector.Z)
+	end
+	if direction.Magnitude < 1 then direction = Vector3.new(1, 0, 0) end
+	direction = direction.Unit
+	safePosition = attackCFrame.Position + direction * tabs.boss.Data.EvadeDistance + Vector3.new(0, 18, 0)
+	root.CFrame = CFrame.lookAt(safePosition, attackCFrame.Position)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	tabs.boss.StatusLabel.Text = "Status: Dodging Stomp"
+	return "Stomp"
+end
+
+tabs.boss.attack = function(model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position, evadeMode)
 	character = utils.playerData.Player.Character
 	root = character and character:FindFirstChild("HumanoidRootPart")
 	humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if not root or not humanoid or humanoid.Health <= 0 then return end
+	evadeMode = tabs.boss.evadeAttack(model, hitbox, root, humanoid)
+	if evadeMode == "Stomp" then return end
 	punch = character:FindFirstChild("Punch") or utils.playerData.Backpack:FindFirstChild("Punch")
 	if punch and punch.Parent ~= character then humanoid:EquipTool(punch) end
 	leftHand = character:FindFirstChild("LeftHand")
 	rightHand = character:FindFirstChild("RightHand")
-	center = tabs.boss.getOrbitPosition(model, hitbox)
-	tabs.boss.Data.OrbitAngle += tabs.boss.Data.OrbitSpeed
-	position = center + Vector3.new(
-		math.cos(tabs.boss.Data.OrbitAngle) * tabs.boss.Data.OrbitRadius,
-		tabs.boss.Data.OrbitHeight + math.sin(tabs.boss.Data.OrbitAngle * 2) * 1.5,
-		math.sin(tabs.boss.Data.OrbitAngle) * tabs.boss.Data.OrbitRadius
-	)
-	root.CFrame = CFrame.lookAt(position, center)
+	center = tabs.boss.getBossHeadPosition(model, hitbox)
+	if evadeMode ~= "Punch" then
+		position = center
+		root.CFrame = CFrame.lookAt(position, position + hitbox.CFrame.LookVector)
+	end
 	root.AssemblyLinearVelocity = Vector3.zero
 	root.AssemblyAngularVelocity = Vector3.zero
 	pcall(function()
@@ -2483,6 +2553,9 @@ tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
 					if not wasFighting then
 						wasFighting = true
 						tabs.boss.Data.Phase = "Fighting"
+						tabs.boss.Data.AttackSequence = nil
+						tabs.boss.Data.EvadeUntil = 0
+						tabs.boss.Data.DodgeStomps = false
 						tabs.boss.pauseTraining()
 					end
 					if utils.playerData.Player.Character
