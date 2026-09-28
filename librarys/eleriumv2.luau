@@ -1463,6 +1463,7 @@ function library:AddWindow(title, options)
 
 					function tab_data:AddDropdown(dropdown_name, callback)
 						local dropdown_data = {}
+						local dropdown_objects = {}
 						dropdown_name = tostring(dropdown_name or "New Dropdown")
 						callback = typeof(callback) == "function" and callback or function()end
 
@@ -1512,6 +1513,8 @@ local object = prefabs:FindFirstChild("DropdownButton"):Clone()
 							object.Parent = objects
 							object.Text = n
 							object.ZIndex = object.ZIndex + (windows * 10)
+							dropdown_objects[n] = dropdown_objects[n] or {}
+							table.insert(dropdown_objects[n], object)
 
 							object.MouseEnter:Connect(function()
 								object.BackgroundColor3 = options.main_color
@@ -1541,10 +1544,62 @@ local object = prefabs:FindFirstChild("DropdownButton"):Clone()
 							end)
 
 							function object_data:Remove()
-								object:Destroy()
+								if object.Parent then object:Destroy() end
+								local named_objects = dropdown_objects[n]
+								if named_objects then
+									for index = #named_objects, 1, -1 do
+										if named_objects[index] == object then
+											table.remove(named_objects, index)
+										end
+									end
+									if #named_objects == 0 then dropdown_objects[n] = nil end
+								end
 							end
 
 							return object, object_data
+						end
+
+						function dropdown_data:Remove(n)
+							n = tostring(n or "New Object")
+							local named_objects = dropdown_objects[n]
+							if not named_objects then return end
+
+							for _, object in ipairs(named_objects) do
+								if object.Parent then object:Destroy() end
+							end
+							dropdown_objects[n] = nil
+							if dropdown.Text == "      [ " .. n .. " ]" then
+								dropdown.Text = "      " .. dropdown_name
+							end
+							if open then
+								open = false
+								dropdown_open = false
+								Resize(box, {Size = UDim2.new(1, 0, 0, 0)}, options.tween_time)
+								Resize(indicator, {Rotation = -90}, options.tween_time)
+							end
+						end
+
+						function dropdown_data:Clear()
+							for name, named_objects in pairs(dropdown_objects) do
+								for _, object in ipairs(named_objects) do
+									if object.Parent then object:Destroy() end
+								end
+								dropdown_objects[name] = nil
+							end
+							dropdown.Text = "      " .. dropdown_name
+							if open then
+								open = false
+								dropdown_open = false
+								Resize(box, {Size = UDim2.new(1, 0, 0, 0)}, options.tween_time)
+								Resize(indicator, {Rotation = -90}, options.tween_time)
+							end
+						end
+
+						function dropdown_data:Refresh(items)
+							dropdown_data:Clear()
+							for _, item in ipairs(items or {}) do
+								dropdown_data:Add(item)
+							end
 						end
 
 						return dropdown_data, dropdown
