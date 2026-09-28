@@ -2216,8 +2216,62 @@ tabs.boss.Data = {
 	EvadeDistance = 230,
 	PunchBehindDistance = 45,
 	StompHealthThreshold = 0.35,
-	DodgeStomps = false
+	DodgeStomps = false,
+	BossConfig = nil,
+	Bosses = {},
+	BossOrder = {},
+	BossByDisplayName = {},
+	SelectedBosses = {}
 }
+
+tabs.boss.SelectedBossesLabel = tabs.boss:AddLabel("Targeted Bosses: Detecting...")
+tabs.boss.BossDropdown = tabs.boss:AddDropdown("Target specific Bosses", function(displayName)
+	tabs.boss.runtime.bossModelName = tabs.boss.Data.BossByDisplayName[displayName]
+	if tabs.boss.runtime.bossModelName then
+		tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName] = not tabs.boss.Data.SelectedBosses[tabs.boss.runtime.bossModelName]
+		tabs.boss.updateSelectedBossesLabel()
+	end
+end)
+
+tabs.boss.updateSelectedBossesLabel = function(selectedNames)
+	selectedNames = {}
+	for _, modelName in ipairs(tabs.boss.Data.BossOrder) do
+		if tabs.boss.Data.SelectedBosses[modelName] then
+			table.insert(selectedNames, (string.gsub(tabs.boss.Data.Bosses[modelName], "%s+[Bb][Oo][Ss][Ss]$", "")))
+		end
+	end
+	tabs.boss.SelectedBossesLabel.Text = "Targeted Bosses: " .. (#selectedNames > 0 and table.concat(selectedNames, ", ") or "None")
+end
+
+tabs.boss.addBossChoice = function(modelName, displayName)
+	modelName = tostring(modelName or "")
+	displayName = tostring(displayName or modelName)
+	if modelName == "" or tabs.boss.Data.Bosses[modelName] then return end
+	tabs.boss.Data.Bosses[modelName] = displayName
+	tabs.boss.Data.BossByDisplayName[displayName] = modelName
+	tabs.boss.Data.SelectedBosses[modelName] = true
+	table.insert(tabs.boss.Data.BossOrder, modelName)
+	tabs.boss.BossDropdown:Add(displayName)
+	tabs.boss.updateSelectedBossesLabel()
+end
+
+tabs.boss.runtime.configSuccess, tabs.boss.Data.BossConfig = pcall(function()
+	return require(services.ReplicatedStorage:WaitForChild("shared"):WaitForChild("config"):WaitForChild("BossEventConfig"))
+end)
+if tabs.boss.runtime.configSuccess and tabs.boss.Data.BossConfig and tabs.boss.Data.BossConfig.RARITIES then
+	for _, rarity in ipairs(tabs.boss.Data.BossConfig.RARITIES) do
+		tabs.boss.addBossChoice(rarity.BossModel, rarity.DisplayName or rarity.Name or rarity.BossModel)
+	end
+else
+	tabs.boss.SelectedBossesLabel.Text = "Farmed Bosses: Waiting for detection"
+end
+
+tabs.boss.shouldFarmBoss = function(model)
+	if not tabs.boss.Data.Bosses[model.Name] then
+		tabs.boss.addBossChoice(model.Name, services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	end
+	return tabs.boss.Data.SelectedBosses[model.Name] == true
+end
 
 tabs.boss.findActiveBoss = function(model, stats, health, maxHealth, hitbox)
 	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventBoss")) do
@@ -2545,11 +2599,19 @@ tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
 		return
 	end
 
-	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox)
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox, selected)
 		while utils.isCurrent() and tabs.boss.Data.Running and tabs.boss.Data.Generation == generation do
 			pcall(function()
 				model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
-				if model then
+				selected = model and tabs.boss.shouldFarmBoss(model)
+				if model and not selected then
+					if wasFighting then
+						wasFighting = false
+						tabs.boss.resumeTraining()
+					end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Skipping " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+				elseif model then
 					if not wasFighting then
 						wasFighting = true
 						tabs.boss.Data.Phase = "Fighting"
@@ -2579,7 +2641,7 @@ tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
 					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
 				end
 			end)
-			task.wait(model and 0.03 or 0.25)
+			task.wait(model and selected and 0.03 or 0.25)
 		end
 	end, tabs.boss.runtime.generation)
 end)
