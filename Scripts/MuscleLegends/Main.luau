@@ -11,11 +11,29 @@ local services = {
 	Lighting = game:GetService("Lighting"),
 	UserInputService = game:GetService("UserInputService"),
 	VirtualInputManager = game:GetService("VirtualInputManager"),
-	RunService = game:GetService("RunService")
+	RunService = game:GetService("RunService"),
+	CollectionService = game:GetService("CollectionService")
 }
 
 local utils = {}
 utils.runtime = {}
+
+for _, connection in ipairs(_G.SilenceMainConnections or {}) do
+	pcall(function() connection:Disconnect() end)
+end
+_G.SilenceMainConnections = {}
+_G.SilenceMainGeneration = (_G.SilenceMainGeneration or 0) + 1
+utils.Generation = _G.SilenceMainGeneration
+
+function utils.isCurrent()
+	return utils.Generation == _G.SilenceMainGeneration
+end
+
+function utils.connect(signal, callback, connection)
+	connection = signal:Connect(callback)
+	table.insert(_G.SilenceMainConnections, connection)
+	return connection
+end
 
 utils.playerData = {
 	Player = services.Players.LocalPlayer,
@@ -92,17 +110,23 @@ function utils.deleteAds()
 end
 utils.deleteAds()
 
-utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/librarys/eleriumv2.luau", true))()
+utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/librarys/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
 
 utils.silence = utils.library:AddWindow("Silence | Main - " .. utils.greeting(), {
 	main_color = Color3.fromRGB(138, 0, 0),
-	min_size = Vector2.new(550, 800),
+	min_size = Vector2.new(566, 750),
 	can_resize = true,
 })
 
-utils.playerData.Player.Idled:Connect(function()
+utils.connect(utils.playerData.Player.Idled, function()
 	services.VirtualUser:CaptureController()
 	services.VirtualUser:ClickButton2(Vector2.new())
+end)
+
+utils.connect(utils.playerData.Player.CharacterAdded, function(character)
+	utils.playerData.Character = character
+	utils.playerData.Humanoid = character:WaitForChild("Humanoid", 10)
+	utils.playerData.Backpack = utils.playerData.Player:WaitForChild("Backpack")
 end)
 
 local tabs = {
@@ -110,6 +134,7 @@ local tabs = {
 	killing = utils.silence:AddTab("Killing"),
 	specs = utils.silence:AddTab("Specs"),
 	farming = utils.silence:AddTab("Farming"),
+	boss = utils.silence:AddTab("Boss"),
 	inventory = utils.silence:AddTab("Pets"),
 	boosts = utils.silence:AddTab("Boosts"),
 	teleport = utils.silence:AddTab("Teleports"),
@@ -141,7 +166,7 @@ tabs.main:AddSwitch("Set Size", function(bool)
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.main.Settings.Size.Enabled and utils.playerData.Character and utils.playerData.Humanoid then
 			utils.remotes.ChangeSpeedSize:InvokeServer("changeSize", tabs.main.Settings.Size.Value)
 		end
@@ -161,7 +186,7 @@ tabs.main:AddSwitch("Set Speed", function(bool)
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.main.Settings.Speed.Enabled and utils.playerData.Character and utils.playerData.Humanoid then
 			utils.remotes.ChangeSpeedSize:InvokeServer("changeSpeed", tabs.main.Settings.Speed.Value)
 		end
@@ -183,7 +208,7 @@ if utils.playerData.Camera then
 	end)
 
 	task.spawn(function()
-		while true do
+		while utils.isCurrent() and true do
 			if tabs.main.Settings.FOV.Enabled and utils.playerData.Camera then
 				utils.playerData.Camera.FieldOfView = tabs.main.Settings.FOV.Value
 			end
@@ -226,7 +251,7 @@ tabs.main:AddSwitch("Anti Fling", function(bool)
 	if bool then tabs.main.enableAntiFling() else tabs.main.disableAntiFling() end
 end):Set(true)
 
-utils.playerData.Player.CharacterAdded:Connect(function(newChar)
+utils.connect(utils.playerData.Player.CharacterAdded, function(newChar)
 	newChar:WaitForChild("HumanoidRootPart", 5)
 	if tabs.main.Protection.AntiFling.Enabled then tabs.main.enableAntiFling() end
 end)
@@ -291,7 +316,7 @@ tabs.main.VisibilitySettings.HidePopupsSwitch = tabs.main:AddSwitch("Hide Popups
 end)
 tabs.main.VisibilitySettings.HidePopupsSwitch:Set(true)
 
-utils.playerData.Player.CharacterAdded:Connect(function(newChar)
+utils.connect(utils.playerData.Player.CharacterAdded, function(newChar)
 	if tabs.main.Protection.PositionLock.Enabled and newChar:WaitForChild("HumanoidRootPart", 5) then
 		tabs.main.Protection.PositionLock.Position = newChar.HumanoidRootPart.Position
 		tabs.main.lockPosition()
@@ -299,7 +324,7 @@ utils.playerData.Player.CharacterAdded:Connect(function(newChar)
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.main.Protection.PositionLock.Enabled then tabs.main.lockPosition() end
 		task.wait(0.1)
 	end
@@ -349,7 +374,7 @@ tabs.main:AddLabel("Other:")
 tabs.main:AddSwitch("Infinite Jump", function(bool)
 	_G.InfiniteJump = bool
 	if bool then
-		services.UserInputService.JumpRequest:Connect(function()
+		utils.connect(services.UserInputService.JumpRequest, function()
 			if _G.InfiniteJump then
 				services.Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping")
 			end
@@ -385,7 +410,7 @@ tabs.main:AddSwitch("Spin Fortune Wheel", function(state)
 	if not state then return end
 
 	task.spawn(function()
-		while tabs.main.FortuneWheelData.Running and tabs.main.FortuneWheelData.Generation == tabs.main.runtime.generation do
+		while utils.isCurrent() and tabs.main.FortuneWheelData.Running and tabs.main.FortuneWheelData.Generation == tabs.main.runtime.generation do
 			tabs.main.spinFortuneWheel()
 			task.wait(1)
 		end
@@ -492,7 +517,7 @@ end
 
 tabs.killing.attackPlayerWithLimit = function(target, hitLimit, shouldContinue, heightOffset, countAttempts, hits, hitRegistered, attempted)
 	hits = 0
-	while hits < hitLimit and shouldContinue() and tabs.killing.isPlayerAlive(target) and not tabs.killing.isSpawnProtected(target) do
+	while utils.isCurrent() and hits < hitLimit and shouldContinue() and tabs.killing.isPlayerAlive(target) and not tabs.killing.isSpawnProtected(target) do
 		hitRegistered, attempted = tabs.killing.touchAndPunchTarget(target, heightOffset)
 		if countAttempts or hitRegistered then hits = hits + 1 end
 		if not attempted and not countAttempts then break end
@@ -503,7 +528,7 @@ end
 
 tabs.killing.attackPlayerForDuration = function(target, duration, shouldContinue, heightOffset, startedAt, character, targetRoot, leftHand, rightHand, punchTool, humanoid)
 	startedAt = os.clock()
-	while os.clock() - startedAt < duration
+	while utils.isCurrent() and os.clock() - startedAt < duration
 		and shouldContinue()
 		and tabs.killing.isPlayerAlive(target)
 		and not tabs.killing.isSpawnProtected(target) do
@@ -620,7 +645,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 
 			tabs.killing.runtime.path = ""
 			tabs.killing.runtime.current = tabs.killing.runtime.animation
-			while tabs.killing.runtime.current and tabs.killing.runtime.current ~= tabs.killing.runtime.animate.Parent do
+			while utils.isCurrent() and tabs.killing.runtime.current and tabs.killing.runtime.current ~= tabs.killing.runtime.animate.Parent do
 				tabs.killing.runtime.path = tabs.killing.runtime.path .. " " .. string.lower(tabs.killing.runtime.current.Name)
 				if tabs.killing.runtime.current == tabs.killing.runtime.animate then break end
 				tabs.killing.runtime.current = tabs.killing.runtime.current.Parent
@@ -671,7 +696,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 
 			tabs.killing.runtime.stopBlockedAnimations(tabs.killing.runtime.char_627)
 			if _G.AnimBlockConnection then _G.AnimBlockConnection:Disconnect() end
-			_G.AnimBlockConnection = tabs.killing.runtime.humanoid_628.AnimationPlayed:Connect(function(track)
+			_G.AnimBlockConnection = utils.connect(tabs.killing.runtime.humanoid_628.AnimationPlayed, function(track)
 				if tabs.killing.runtime.shouldBlockAnimation(track)
 					or (tabs.killing.runtime.hasAttackToolEquipped(tabs.killing.runtime.char_627) and not tabs.killing.runtime.isMovementAnimation(track, tabs.killing.runtime.char_627)) then
 					track:Stop(0)
@@ -685,13 +710,13 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 					tool:SetAttribute("ActivatedOverride", true)
 
 					_G.ToolConnections = _G.ToolConnections or {}
-					_G.ToolConnections[tool] = tool.Activated:Connect(function()
+					_G.ToolConnections[tool] = utils.connect(tool.Activated, function()
 						task.wait(0.05)
 						tabs.killing.runtime.stopBlockedAnimations(services.Players.LocalPlayer.Character)
 					end)
 
 					_G.ToolEquipConnections = _G.ToolEquipConnections or {}
-					_G.ToolEquipConnections[tool] = tool.Equipped:Connect(function()
+					_G.ToolEquipConnections[tool] = utils.connect(tool.Equipped, function()
 						for _, delayTime in ipairs({0, 0.03, 0.08, 0.15, 0.25}) do
 							task.delay(delayTime, function()
 								tabs.killing.runtime.stopEquipAnimations(services.Players.LocalPlayer.Character)
@@ -720,7 +745,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 				end
 			end
 
-			_G.BackpackAddedConnection = services.Players.LocalPlayer.Backpack.ChildAdded:Connect(function(child)
+			_G.BackpackAddedConnection = utils.connect(services.Players.LocalPlayer.Backpack.ChildAdded, function(child)
 				if child:IsA("Tool") then
 					task.wait(0.1)
 					tabs.killing.runtime.processTool(child)
@@ -728,7 +753,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 			end)
 
 			if tabs.killing.runtime.char_673 then
-				_G.CharacterToolAddedConnection = tabs.killing.runtime.char_673.ChildAdded:Connect(function(child)
+				_G.CharacterToolAddedConnection = utils.connect(tabs.killing.runtime.char_673.ChildAdded, function(child)
 					if child:IsA("Tool") then
 						task.wait(0.1)
 						tabs.killing.runtime.processTool(child)
@@ -737,7 +762,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 			end
 		end
 
-		_G.AnimMonitorConnection = services.RunService.RenderStepped:Connect(function()
+		_G.AnimMonitorConnection = utils.connect(services.RunService.RenderStepped, function()
 			tabs.killing.runtime.character_700 = services.Players.LocalPlayer.Character
 			if tabs.killing.runtime.hasAttackToolEquipped(tabs.killing.runtime.character_700) then
 				tabs.killing.runtime.stopEquipAnimations(tabs.killing.runtime.character_700)
@@ -746,7 +771,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 			end
 		end)
 
-		_G.CharacterAddedConnection = services.Players.LocalPlayer.CharacterAdded:Connect(function(newChar)
+		_G.CharacterAddedConnection = utils.connect(services.Players.LocalPlayer.CharacterAdded, function(newChar)
 			task.wait(1)
 			tabs.killing.runtime.setupAnimationBlocking()
 			tabs.killing.runtime.overrideToolActivation()
@@ -755,7 +780,7 @@ tabs.killing:AddSwitch("Remove Attack Animations", function(bool)
 				_G.CharacterToolAddedConnection:Disconnect()
 			end
 
-			_G.CharacterToolAddedConnection = newChar.ChildAdded:Connect(function(child)
+			_G.CharacterToolAddedConnection = utils.connect(newChar.ChildAdded, function(child)
 				if child:IsA("Tool") then
 					task.wait(0.1)
 					tabs.killing.runtime.processTool(child)
@@ -875,7 +900,7 @@ tabs.killing:AddSwitch("Kill Everyone", function(bool)
 	if not bool then return end
 
 	task.spawn(function(generation, foundTarget)
-		while _G.killAll and _G.killAllGeneration == generation do
+		while utils.isCurrent() and _G.killAll and _G.killAllGeneration == generation do
 			foundTarget = false
 			for _, player in ipairs(services.Players:GetPlayers()) do
 				if not _G.killAll or _G.killAllGeneration ~= generation then break end
@@ -910,7 +935,7 @@ tabs.killing:AddSwitch("Whitelist Friends", function(bool)
 			end
 		end
 
-		_G.friendWhitelistConnection = services.Players.PlayerAdded:Connect(function(player)
+		_G.friendWhitelistConnection = utils.connect(services.Players.PlayerAdded, function(player)
 			if _G.whitelistFriends and player:IsFriendsWith(services.Players.LocalPlayer.UserId) then
 				if not tabs.killing.isWhitelisted(player) then
 					table.insert(_G.whitelistedPlayers, player.Name)
@@ -919,7 +944,7 @@ tabs.killing:AddSwitch("Whitelist Friends", function(bool)
 		end)
 
 		_G.friendCheckLoop = task.spawn(function()
-			while _G.whitelistFriends do
+			while utils.isCurrent() and _G.whitelistFriends do
 				task.wait(3)
 				for _, player in pairs(services.Players:GetPlayers()) do
 					if player ~= services.Players.LocalPlayer and player:IsFriendsWith(services.Players.LocalPlayer.UserId) then
@@ -965,7 +990,7 @@ tabs.killing.restartKarmaWorker = function()
 	if not tabs.killing.KarmaData.FarmEvil and not tabs.killing.KarmaData.FarmGood then return end
 
 	task.spawn(function()
-		while (tabs.killing.KarmaData.FarmEvil or tabs.killing.KarmaData.FarmGood) and tabs.killing.KarmaData.Generation == tabs.killing.runtime.generation_921 do
+		while utils.isCurrent() and (tabs.killing.KarmaData.FarmEvil or tabs.killing.KarmaData.FarmGood) and tabs.killing.KarmaData.Generation == tabs.killing.runtime.generation_921 do
 			tabs.killing.runtime.foundTarget_926 = false
 			for _, player in ipairs(services.Players:GetPlayers()) do
 				if tabs.killing.KarmaData.Generation ~= tabs.killing.runtime.generation_921 then break end
@@ -1026,14 +1051,14 @@ for _, player in ipairs(services.Players:GetPlayers()) do
 	end
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
 	if player ~= services.Players.LocalPlayer then
 		tabs.killing.WhitelistDropdown:Add(player.DisplayName .. " | " .. player.Name)
 		tabs.killing.BlacklistDropdown:Add(player.DisplayName .. " | " .. player.Name)
 	end
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
 	tabs.killing.WhitelistDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 	tabs.killing.BlacklistDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 end)
@@ -1055,7 +1080,7 @@ tabs.killing.setTargetKillAntiGravity = function(enabled)
 			tabs.killing.TargetKillGravityState.OriginalGravity = services.Workspace.Gravity
 			services.Workspace.Gravity = 0
 
-			tabs.killing.TargetKillGravityState.Connection = services.RunService.Heartbeat:Connect(function()
+			tabs.killing.TargetKillGravityState.Connection = utils.connect(services.RunService.Heartbeat, function()
 				services.Workspace.Gravity = 0
 				tabs.killing.runtime.currentCharacter = services.Players.LocalPlayer.Character
 				tabs.killing.runtime.currentRoot = tabs.killing.runtime.currentCharacter and tabs.killing.runtime.currentCharacter:FindFirstChild("HumanoidRootPart")
@@ -1097,7 +1122,7 @@ tabs.killing:AddSwitch("Kill List", function(bool)
 	tabs.killing.setTargetKillAntiGravity(true)
 
 	task.spawn(function(generation, target)
-		while _G.killBlacklistedOnly and _G.killListGeneration == generation do
+		while utils.isCurrent() and _G.killBlacklistedOnly and _G.killListGeneration == generation do
 			target = nil
 			for _, player in ipairs(services.Players:GetPlayers()) do
 				if not _G.killBlacklistedOnly or _G.killListGeneration ~= generation then break end
@@ -1112,7 +1137,7 @@ tabs.killing:AddSwitch("Kill List", function(bool)
 
 			if target then
 				pcall(function()
-					while _G.killBlacklistedOnly
+					while utils.isCurrent() and _G.killBlacklistedOnly
 						and _G.killListGeneration == generation
 						and target.Parent == services.Players
 						and tabs.killing.isBlacklisted(target)
@@ -1177,7 +1202,7 @@ tabs.killing.startCameraMonitor = function()
 	tabs.killing.SpectateData.CameraMonitorLoop = true
 
 	task.spawn(function()
-		while tabs.killing.SpectateData.CameraMonitorLoop do
+		while utils.isCurrent() and tabs.killing.SpectateData.CameraMonitorLoop do
 			task.wait(0.2)
 			if tabs.killing.SpectateData.Spectating and tabs.killing.SpectateData.SelectedPlayer then
 				tabs.killing.runtime.targetChar = tabs.killing.SpectateData.SelectedPlayer.Character
@@ -1247,7 +1272,7 @@ tabs.killing.updateSpectateTarget = function(player)
 		tabs.killing.runtime.setCamera(player.Character)
 	end
 
-	tabs.killing.SpectateData.CurrentTargetConnection = player.CharacterAdded:Connect(function(newChar)
+	tabs.killing.SpectateData.CurrentTargetConnection = utils.connect(player.CharacterAdded, function(newChar)
 		if tabs.killing.SpectateData.Spectating and tabs.killing.SpectateData.SelectedPlayerUserId == player.UserId then
 			tabs.killing.runtime.setCamera(newChar)
 		end
@@ -1301,7 +1326,7 @@ for _, player in ipairs(tabs.killing.getPlayers()) do
 	tabs.killing.SpectateDropdown:Add(player.DisplayName .. " | " .. player.Name)
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
 	tabs.killing.SpectateDropdown:Add(player.DisplayName .. " | " .. player.Name)
 	if getgenv().SpectateState.IsSpectating and getgenv().SpectateState.SavedUserId == player.UserId then
 		tabs.killing.SpectateData.Spectating = true
@@ -1311,7 +1336,7 @@ services.Players.PlayerAdded:Connect(function(player)
 	end
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
 	tabs.killing.SpectateDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 	if player.UserId == tabs.killing.SpectateData.SelectedPlayerUserId then
 		if tabs.killing.SpectateData.Spectating then
@@ -1332,7 +1357,7 @@ if tabs.killing.SpectateData.LocalPlayerRespawnConnection then
 	tabs.killing.SpectateData.LocalPlayerRespawnConnection:Disconnect()
 end
 
-tabs.killing.SpectateData.LocalPlayerRespawnConnection = services.Players.LocalPlayer.CharacterAdded:Connect(function(char)
+tabs.killing.SpectateData.LocalPlayerRespawnConnection = utils.connect(services.Players.LocalPlayer.CharacterAdded, function(char)
 	tabs.killing.runtime.humanoid_1288 = char:WaitForChild("Humanoid", 3)
 	if tabs.killing.runtime.humanoid_1288 then
 		utils.playerData.Humanoid = tabs.killing.runtime.humanoid_1288
@@ -1474,7 +1499,7 @@ tabs.killing:AddSwitch("Toggle Ring", function(bool)
 	if tabs.killing.runtime.initialRoot then tabs.killing.KillAura.CenterCFrame = tabs.killing.runtime.initialRoot.CFrame end
 
 	task.spawn(function()
-		while _G.deathRingEnabled and tabs.killing.KillAura.Generation == tabs.killing.runtime.generation_1419 do
+		while utils.isCurrent() and _G.deathRingEnabled and tabs.killing.KillAura.Generation == tabs.killing.runtime.generation_1419 do
 			tabs.killing.runtime.discardCharacter_localRoot_1430, tabs.killing.runtime.discardHumanoid_localRoot_1430, tabs.killing.runtime.localRoot_1430 = tabs.killing.getLocalCombatCharacter()
 			if tabs.killing.runtime.localRoot_1430 and not tabs.killing.KillAura.Frozen then
 				tabs.killing.KillAura.CenterCFrame = tabs.killing.runtime.localRoot_1430.CFrame
@@ -1485,7 +1510,7 @@ tabs.killing:AddSwitch("Toggle Ring", function(bool)
 	end)
 
 	task.spawn(function()
-		while _G.deathRingEnabled and tabs.killing.KillAura.Generation == tabs.killing.runtime.generation_1419 do
+		while utils.isCurrent() and _G.deathRingEnabled and tabs.killing.KillAura.Generation == tabs.killing.runtime.generation_1419 do
 			if tabs.killing.KillAura.Frozen or not tabs.killing.KillAura.CenterCFrame then
 				task.wait(0.05)
 				continue
@@ -1576,7 +1601,7 @@ tabs.killing:AddButton("Clear Killlist", function()
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		tabs.killing.WhitelistLabel.Text = #_G.whitelistedPlayers == 0 and "Whitelist: None" or "Whitelist: " .. table.concat(_G.whitelistedPlayers, ", ")
 		tabs.killing.BlacklistLabel.Text = #_G.blacklistedPlayers == 0 and "Killlist: None" or "Killlist: " .. table.concat(_G.blacklistedPlayers, ", ")
 		task.wait(0.01)
@@ -1615,11 +1640,11 @@ for _, player in ipairs(services.Players:GetPlayers()) do
 	tabs.specs.PlayerDropdown:Add(player.DisplayName .. " | " .. player.Name)
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
 	tabs.specs.PlayerDropdown:Add(player.DisplayName .. " | " .. player.Name)
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
 	tabs.specs.PlayerDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 	if tabs.specs.Data.PlayerToInspect == player then tabs.specs.Data.PlayerToInspect = nil end
 end)
@@ -1648,7 +1673,7 @@ tabs.specs.updateStatLabels = function(targetPlayer)
 end
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.specs.Data.PlayerToInspect then tabs.specs.updateStatLabels(tabs.specs.Data.PlayerToInspect) end
 		task.wait(0.1)
 	end
@@ -1745,7 +1770,7 @@ tabs.specs.updateAdvancedStats = function(targetPlayer)
 end
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		tabs.specs.updateAdvancedStats(tabs.specs.Data.PlayerToInspect)
 		task.wait(0.1)
 	end
@@ -1771,7 +1796,7 @@ tabs.farming.RebirthData.Switch = tabs.farming:AddSwitch("Auto Rebirth", functio
 	if enabled and tabs.farming.RebirthData.TargetRebirths > 0 and tabs.farming.RebirthData.Rebirths.Value < tabs.farming.RebirthData.TargetRebirths then
 		tabs.farming.RebirthData.IsAutoRebirthing = true
 		task.spawn(function()
-			while tabs.farming.RebirthData.IsAutoRebirthing and tabs.farming.RebirthData.Rebirths.Value < tabs.farming.RebirthData.TargetRebirths do
+			while utils.isCurrent() and tabs.farming.RebirthData.IsAutoRebirthing and tabs.farming.RebirthData.Rebirths.Value < tabs.farming.RebirthData.TargetRebirths do
 				services.ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
 				task.wait(0.05)
 			end
@@ -1784,7 +1809,7 @@ tabs.farming.RebirthData.Switch = tabs.farming:AddSwitch("Auto Rebirth", functio
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		tabs.farming.RebirthData.Label.Text = "Rebirths: " .. utils.formatWithCommas(tabs.farming.RebirthData.Rebirths.Value)
 		tabs.farming.RebirthData.TargetLabel.Text = "Target Rebirths: " .. utils.formatWithCommas(tabs.farming.RebirthData.TargetRebirths)
 		task.wait(0.01)
@@ -1793,10 +1818,11 @@ end)
 
 tabs.farming.SizeData = {Active = false}
 
-tabs.farming:AddSwitch("Auto Size 1", function(bool) tabs.farming.SizeData.Active = bool end):Set(false)
+tabs.farming.SizeSwitch = tabs.farming:AddSwitch("Auto Size 1", function(bool) tabs.farming.SizeData.Active = bool end)
+tabs.farming.SizeSwitch:Set(false)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.farming.SizeData.Active and utils.playerData.Character and utils.playerData.Humanoid then
 			utils.remotes.ChangeSpeedSize:InvokeServer("changeSize", 1)
 		end
@@ -1806,12 +1832,12 @@ end)
 
 tabs.farming.KingData = {TargetPosition = CFrame.new(-8665.4, 17.21, -5792.9), TeleportActive = false}
 
-tabs.farming:AddSwitch("Auto King", function(enabled)
+tabs.farming.KingSwitch = tabs.farming:AddSwitch("Auto King", function(enabled)
 	tabs.farming.KingData.TeleportActive = enabled
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.farming.KingData.TeleportActive then
 			if not utils.playerData.Character or not utils.playerData.Character:FindFirstChildOfClass("Humanoid") then
 				utils.playerData.Player.CharacterAdded:Wait()
@@ -1921,7 +1947,7 @@ tabs.farming.ToolExerciseSwitch = tabs.farming:AddSwitch("Start exercising", fun
 		if tabs.farming.LiftExerciseSwitch and tabs.farming.MachineExerciseData.Lift.Running then tabs.farming.LiftExerciseSwitch:Set(false) end
 
 		task.spawn(function()
-			while tabs.farming.ExerciseData.AutoFarm do
+			while utils.isCurrent() and tabs.farming.ExerciseData.AutoFarm do
 				if utils.playerData.Character ~= utils.playerData.Player.Character then
 					utils.playerData.Character = utils.playerData.Player.Character
 					utils.playerData.Humanoid = utils.playerData.Character and utils.playerData.Character:FindFirstChildOfClass("Humanoid")
@@ -2000,7 +2026,7 @@ tabs.farming.startMachineExercise = function(machineData)
 	tabs.farming.runtime.lastCharacter = utils.playerData.Player.Character
 
 	task.spawn(function()
-		while machineData.Running and machineData.Generation == tabs.farming.runtime.generation do
+		while utils.isCurrent() and machineData.Running and machineData.Generation == tabs.farming.runtime.generation do
 			tabs.farming.runtime.character_1958 = utils.playerData.Player.Character
 			tabs.farming.runtime.humanoid = tabs.farming.runtime.character_1958 and tabs.farming.runtime.character_1958:FindFirstChildOfClass("Humanoid")
 
@@ -2062,7 +2088,7 @@ tabs.farming.setMachineExerciseState = function(machineData, otherMachineData, s
 	end
 	tabs.farming.startMachineExercise(machineData)
 	task.spawn(function(generation)
-		while machineData.Running and machineData.Generation == generation do
+		while utils.isCurrent() and machineData.Running and machineData.Generation == generation do
 			if machineData.ActiveMachine then utils.playerData.Player.muscleEvent:FireServer("rep") end
 			task.wait(0.1)
 		end
@@ -2080,11 +2106,11 @@ tabs.farming.LiftExerciseSwitch = tabs.farming:AddSwitch("Auto Lift", function(s
 end)
 
 tabs.farming.AutoRepRunning = false
-tabs.farming:AddSwitch("Auto Rep", function(state)
+tabs.farming.AutoRepSwitch = tabs.farming:AddSwitch("Auto Rep", function(state)
 	tabs.farming.AutoRepRunning = state
 	if not state then return end
 	task.spawn(function()
-		while tabs.farming.AutoRepRunning do
+		while utils.isCurrent() and tabs.farming.AutoRepRunning do
 			utils.playerData.Player.muscleEvent:FireServer("rep")
 			task.wait(0.1)
 		end
@@ -2104,11 +2130,11 @@ tabs.farming.RockData = {
 tabs.farming.RockDropdown = tabs.farming:AddDropdown("Select Rock", function(selection) tabs.farming.RockData.SelectedRock = selection end)
 for rockName in pairs(tabs.farming.RockData.Data) do tabs.farming.RockDropdown:Add(rockName) end
 
-tabs.farming:AddSwitch("Auto Rock", function(enabled)
+tabs.farming.RockSwitch = tabs.farming:AddSwitch("Auto Rock", function(enabled)
 	getgenv().RockFarmRunning = enabled
 	if enabled and tabs.farming.RockData.SelectedRock then
 		task.spawn(function()
-			while getgenv().RockFarmRunning do
+			while utils.isCurrent() and getgenv().RockFarmRunning do
 				task.wait(0.12)
 				if utils.playerData.Player.Durability.Value >= tabs.farming.RockData.Data[tabs.farming.RockData.SelectedRock] then
 					for _, v in pairs(tabs.farming.MachinesFolder:GetDescendants()) do
@@ -2139,14 +2165,14 @@ tabs.farming.ActiveConfigs = {}
 
 for _, config in ipairs(tabs.farming.Configs) do
 	tabs.farming.ActiveConfigs[config.name] = false
-	tabs.farming:AddSwitch(config.name, function(state)
+	config.Switch = tabs.farming:AddSwitch(config.name, function(state)
 		tabs.farming.ActiveConfigs[config.name] = state
 		if tabs.farming.ActiveConfigs[config.name] then
 			if utils.playerData.Player.Backpack:FindFirstChild(config.tool) and not utils.playerData.Player.Character:FindFirstChild(config.tool) then
 				utils.playerData.Player.Character.Humanoid:EquipTool(utils.playerData.Player.Backpack[config.tool])
 			end
 			task.spawn(function()
-				while tabs.farming.ActiveConfigs[config.name] do
+				while utils.isCurrent() and tabs.farming.ActiveConfigs[config.name] do
 					utils.playerData.Player.muscleEvent:FireServer("rep")
 					if tabs.farming.MachinesFolder:FindFirstChild(config.rock) and utils.playerData.Player.Character:FindFirstChild("LeftHand") then
 						firetouchinterest(tabs.farming.MachinesFolder[config.rock].Rock, utils.playerData.Player.Character.LeftHand, 0)
@@ -2170,6 +2196,320 @@ for _, config in ipairs(tabs.farming.Configs) do
 		end
 	end)
 end
+
+tabs.boss:AddLabel("Boss Farming:")
+tabs.boss.StatusLabel = tabs.boss:AddLabel("Status: Waiting for Boss")
+tabs.boss.BossLabel = tabs.boss:AddLabel("Boss: None")
+tabs.boss.HealthLabel = tabs.boss:AddLabel("Health: 0 / 0")
+tabs.boss.NextBossLabel = tabs.boss:AddLabel("Next Boss: N/A")
+
+tabs.boss.Data = {
+	Running = false,
+	Generation = 0,
+	ContinueTraining = true,
+	Phase = "Waiting",
+	TrainingSnapshot = nil,
+	OrbitAngle = 0,
+	OrbitRadius = 9,
+	OrbitHeight = 5,
+	OrbitSpeed = 0.45,
+	PunchInterval = 0.3,
+	LastPunch = 0
+}
+
+tabs.boss.findActiveBoss = function(model, stats, health, maxHealth, hitbox)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventBoss")) do
+		if candidate:IsA("Model") and candidate:IsDescendantOf(services.Workspace) then
+			model = candidate
+			break
+		end
+	end
+
+	if not model then
+		tabs.boss.runtime.events = services.Workspace:FindFirstChild("Events")
+		tabs.boss.runtime.bossFolder = tabs.boss.runtime.events and (tabs.boss.runtime.events:FindFirstChild("BossEvent") or tabs.boss.runtime.events:FindFirstChild("BossArena"))
+		if tabs.boss.runtime.bossFolder then
+			for _, candidate in ipairs(tabs.boss.runtime.bossFolder:GetDescendants()) do
+				if candidate:IsA("Model") and (candidate:FindFirstChild("BossDamageHitbox") or candidate:HasTag("BossEventBoss")) then
+					model = candidate
+					break
+				end
+			end
+		end
+	end
+
+	if not model then return end
+	stats = model:FindFirstChild("stats")
+	health = stats and stats:FindFirstChild("Health")
+	maxHealth = stats and stats:FindFirstChild("MaxHealth")
+	hitbox = model:FindFirstChild("BossDamageHitbox", true)
+	if not hitbox or not hitbox:IsA("BasePart") then return end
+	tabs.boss.runtime.currentHealth = health and health.Value or services.Workspace:GetAttribute("BossHealth")
+	if typeof(tabs.boss.runtime.currentHealth) == "number" and tabs.boss.runtime.currentHealth <= 0 then return end
+	return model, health, maxHealth, hitbox
+end
+
+tabs.boss.getBossHealth = function(health)
+	return health and health.Value or services.Workspace:GetAttribute("BossHealth") or 0
+end
+
+tabs.boss.getBossMaxHealth = function(maxHealth)
+	return maxHealth and maxHealth.Value or services.Workspace:GetAttribute("BossMaxHealth") or 0
+end
+
+tabs.boss.formatCountdown = function(seconds, hours, minutes)
+	seconds = math.max(0, math.floor(seconds or 0))
+	hours = math.floor(seconds / 3600)
+	minutes = math.floor(seconds % 3600 / 60)
+	seconds = seconds % 60
+	return string.format("%dh %dmin %ds", hours, minutes, seconds)
+end
+
+tabs.boss.pauseTraining = function()
+	if tabs.boss.Data.TrainingSnapshot then return end
+	tabs.boss.Data.TrainingSnapshot = {
+		Rebirth = tabs.farming.RebirthData.IsAutoRebirthing,
+		Size = tabs.farming.SizeData.Active,
+		King = tabs.farming.KingData.TeleportActive,
+		Tool = tabs.farming.ExerciseData.AutoFarm,
+		Squat = tabs.farming.MachineExerciseData.Squat.Running,
+		Lift = tabs.farming.MachineExerciseData.Lift.Running,
+		AutoRep = tabs.farming.AutoRepRunning,
+		Rock = getgenv().RockFarmRunning == true,
+		Configs = {}
+	}
+	for _, config in ipairs(tabs.farming.Configs) do
+		tabs.boss.Data.TrainingSnapshot.Configs[config.name] = tabs.farming.ActiveConfigs[config.name] == true
+		if tabs.farming.ActiveConfigs[config.name] and config.Switch then config.Switch:Set(false) end
+	end
+	if tabs.boss.Data.TrainingSnapshot.Rebirth then tabs.farming.RebirthData.Switch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Size then tabs.farming.SizeSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.King then tabs.farming.KingSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Tool then tabs.farming.ToolExerciseSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Squat then tabs.farming.SquatExerciseSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Lift then tabs.farming.LiftExerciseSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.AutoRep then tabs.farming.AutoRepSwitch:Set(false) end
+	if tabs.boss.Data.TrainingSnapshot.Rock then tabs.farming.RockSwitch:Set(false) end
+end
+
+tabs.boss.resumeTraining = function(snapshot)
+	snapshot = tabs.boss.Data.TrainingSnapshot
+	if not snapshot then return end
+	tabs.boss.Data.TrainingSnapshot = nil
+	if snapshot.Rebirth then tabs.farming.RebirthData.Switch:Set(true) end
+	if snapshot.Size then tabs.farming.SizeSwitch:Set(true) end
+	if snapshot.King then tabs.farming.KingSwitch:Set(true) end
+	if snapshot.Tool then tabs.farming.ToolExerciseSwitch:Set(true) end
+	if snapshot.Squat then tabs.farming.SquatExerciseSwitch:Set(true) end
+	if snapshot.Lift then tabs.farming.LiftExerciseSwitch:Set(true) end
+	if snapshot.AutoRep then tabs.farming.AutoRepSwitch:Set(true) end
+	if snapshot.Rock then tabs.farming.RockSwitch:Set(true) end
+	for _, config in ipairs(tabs.farming.Configs) do
+		if snapshot.Configs[config.name] and config.Switch then config.Switch:Set(true) end
+	end
+end
+
+tabs.boss.getOrbitPosition = function(model, hitbox, head)
+	head = model:FindFirstChild("Head", true) or model:FindFirstChild("head", true)
+	if head and head:IsA("BasePart") then return head.Position end
+	if head and head:IsA("Bone") then return head.WorldPosition end
+	return hitbox.Position + Vector3.new(0, hitbox.Size.Y * 0.35, 0)
+end
+
+tabs.boss.getAliveCharacter = function(generation, timeout, startedAt, character, root, humanoid)
+	startedAt = os.clock()
+	repeat
+		character = utils.playerData.Player.Character
+		root = character and character:FindFirstChild("HumanoidRootPart")
+		humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if root and humanoid and humanoid.Health > 0 then
+			utils.playerData.Character = character
+			utils.playerData.Humanoid = humanoid
+			return character, root, humanoid
+		end
+		tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+		task.wait(0.1)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or (timeout and os.clock() - startedAt >= timeout)
+end
+
+tabs.boss.attack = function(model, health, maxHealth, hitbox, character, root, humanoid, punch, leftHand, rightHand, center, position)
+	character = utils.playerData.Player.Character
+	root = character and character:FindFirstChild("HumanoidRootPart")
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or humanoid.Health <= 0 then return end
+	punch = character:FindFirstChild("Punch") or utils.playerData.Backpack:FindFirstChild("Punch")
+	if punch and punch.Parent ~= character then humanoid:EquipTool(punch) end
+	leftHand = character:FindFirstChild("LeftHand")
+	rightHand = character:FindFirstChild("RightHand")
+	center = tabs.boss.getOrbitPosition(model, hitbox)
+	tabs.boss.Data.OrbitAngle += tabs.boss.Data.OrbitSpeed
+	position = center + Vector3.new(
+		math.cos(tabs.boss.Data.OrbitAngle) * tabs.boss.Data.OrbitRadius,
+		tabs.boss.Data.OrbitHeight + math.sin(tabs.boss.Data.OrbitAngle * 2) * 1.5,
+		math.sin(tabs.boss.Data.OrbitAngle) * tabs.boss.Data.OrbitRadius
+	)
+	root.CFrame = CFrame.lookAt(position, center)
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	pcall(function()
+		if leftHand then
+			firetouchinterest(hitbox, leftHand, 0)
+			firetouchinterest(hitbox, leftHand, 1)
+		end
+		if rightHand then
+			firetouchinterest(hitbox, rightHand, 0)
+			firetouchinterest(hitbox, rightHand, 1)
+		end
+	end)
+
+	if os.clock() - tabs.boss.Data.LastPunch >= tabs.boss.Data.PunchInterval then
+		tabs.boss.Data.LastPunch = os.clock()
+		pcall(function()
+			utils.remotes.MuscleEvent:FireServer("punch", "leftHand")
+			utils.remotes.MuscleEvent:FireServer("punch", "rightHand")
+			if punch then punch:Activate() end
+		end)
+	end
+
+	tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+	tabs.boss.runtime.health = tabs.boss.getBossHealth(health)
+	tabs.boss.runtime.maxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+	tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(tabs.boss.runtime.health) .. " / " .. utils.formatNumber(tabs.boss.runtime.maxHealth)
+end
+
+tabs.boss.findChest = function(chest, prompt, part)
+	for _, candidate in ipairs(services.CollectionService:GetTagged("BossEventChest")) do
+		if candidate:IsDescendantOf(services.Workspace) then chest = candidate break end
+	end
+	if not chest then chest = services.Workspace:FindFirstChild("BossChest", true) end
+	if not chest then
+		for _, candidate in ipairs(services.Workspace:GetDescendants()) do
+			if candidate:IsA("ProximityPrompt") and candidate.Name == "bossChestPrompt" then
+				chest = candidate.Parent
+				break
+			end
+		end
+	end
+	if not chest then return end
+	prompt = chest:FindFirstChild("bossChestPrompt", true)
+	part = prompt and prompt.Parent or (chest:IsA("Model") and (chest.PrimaryPart or chest:FindFirstChildWhichIsA("BasePart", true))) or chest
+	if part and part:IsA("BasePart") then return chest, prompt, part end
+end
+
+tabs.boss.collectChest = function(generation, startedAt, chest, prompt, part, character, root)
+	tabs.boss.StatusLabel.Text = "Status: Waiting for Chest"
+	startedAt = os.clock()
+	repeat
+		chest, prompt, part = tabs.boss.findChest()
+		if chest and chest:GetAttribute("BossChestEmerging") ~= true then break end
+		task.wait(0.1)
+	until not tabs.boss.Data.Running or tabs.boss.Data.Generation ~= generation or os.clock() - startedAt >= 12
+	if not chest or not part then return end
+
+	tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+	startedAt = os.clock()
+	repeat
+		character, root = tabs.boss.getAliveCharacter(generation, 2)
+		if character and root and chest.Parent and part.Parent then
+			tabs.boss.StatusLabel.Text = "Status: Collecting Chest"
+			pcall(function()
+				root.CFrame = CFrame.lookAt(part.Position + Vector3.new(0, 3, 4), part.Position)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
+			task.wait(0.15)
+			if prompt and prompt.Parent and fireproximityprompt then
+				pcall(function() fireproximityprompt(prompt) end)
+			else
+				pcall(function()
+					services.VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+					task.wait(0.1)
+					services.VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+				end)
+			end
+		end
+		task.wait(0.25)
+	until not tabs.boss.Data.Running
+		or tabs.boss.Data.Generation ~= generation
+		or utils.playerData.Player:GetAttribute("BossChestPending") == false
+		or not chest.Parent
+		or os.clock() - startedAt >= 12
+end
+
+tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Training after Boss Kill", function(state)
+	tabs.boss.Data.ContinueTraining = state
+	if state and tabs.boss.Data.Phase == "Waiting" then tabs.boss.resumeTraining() end
+end)
+tabs.boss.ContinueSwitch:Set(true)
+
+task.spawn(function(model, health, maxHealth, hitbox, currentHealth, currentMaxHealth, nextTime)
+	while utils.isCurrent() and true do
+		model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+		if model then
+			currentHealth = tabs.boss.getBossHealth(health)
+			currentMaxHealth = tabs.boss.getBossMaxHealth(maxHealth)
+			tabs.boss.BossLabel.Text = "Boss: " .. (services.Workspace:GetAttribute("BossDisplayName") or model.Name)
+			tabs.boss.HealthLabel.Text = "Health: " .. utils.formatNumber(currentHealth) .. " / " .. utils.formatNumber(currentMaxHealth)
+			tabs.boss.NextBossLabel.Text = "Next Boss: Current boss active"
+		else
+			tabs.boss.BossLabel.Text = "Boss: None"
+			tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+			nextTime = services.Workspace:GetAttribute("BossSpawnNextTime")
+			tabs.boss.NextBossLabel.Text = typeof(nextTime) == "number"
+				and "Next Boss: " .. tabs.boss.formatCountdown(nextTime - services.Workspace:GetServerTimeNow())
+				or "Next Boss: N/A"
+		end
+		task.wait(0.25)
+	end
+end)
+
+tabs.boss.AutoFarmSwitch = tabs.boss:AddSwitch("Auto Farm Boss", function(state)
+	tabs.boss.Data.Running = state
+	tabs.boss.Data.Generation += 1
+	tabs.boss.runtime.generation = tabs.boss.Data.Generation
+	if not state then
+		tabs.boss.Data.Phase = "Waiting"
+		tabs.boss.StatusLabel.Text = "Status: Disabled"
+		tabs.boss.resumeTraining()
+		return
+	end
+
+	task.spawn(function(generation, wasFighting, model, health, maxHealth, hitbox)
+		while utils.isCurrent() and tabs.boss.Data.Running and tabs.boss.Data.Generation == generation do
+			pcall(function()
+				model, health, maxHealth, hitbox = tabs.boss.findActiveBoss()
+				if model then
+					if not wasFighting then
+						wasFighting = true
+						tabs.boss.Data.Phase = "Fighting"
+						tabs.boss.pauseTraining()
+					end
+					if utils.playerData.Player.Character
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid")
+						and utils.playerData.Player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+						tabs.boss.StatusLabel.Text = "Status: Fighting"
+						tabs.boss.attack(model, health, maxHealth, hitbox)
+					else
+						tabs.boss.StatusLabel.Text = "Status: Waiting for Respawn"
+					end
+				elseif wasFighting then
+					wasFighting = false
+					tabs.boss.Data.Phase = "Collecting"
+					pcall(tabs.boss.collectChest, generation)
+					tabs.boss.BossLabel.Text = "Boss: None"
+					tabs.boss.HealthLabel.Text = "Health: 0 / 0"
+					if tabs.boss.Data.ContinueTraining then tabs.boss.resumeTraining() end
+					tabs.boss.Data.Phase = "Waiting"
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				else
+					tabs.boss.StatusLabel.Text = "Status: Waiting for Boss"
+				end
+			end)
+			task.wait(model and 0.03 or 0.25)
+		end
+	end, tabs.boss.runtime.generation)
+end)
 
 tabs.inventory:AddLabel("Pet Shop:")
 
@@ -2217,7 +2557,7 @@ tabs.inventory:AddSwitch("Buy Pet", function(bool)
 	_G.AutoHatchPet = bool
 	if bool then
 		task.spawn(function()
-			while _G.AutoHatchPet do
+			while utils.isCurrent() and _G.AutoHatchPet do
 				for _, petName in ipairs(tabs.inventory.PetShopData.SelectedList) do
 					tabs.inventory.runtime.selectedPet = tabs.inventory.PetShopFolder:FindFirstChild(petName)
 					if tabs.inventory.runtime.selectedPet then
@@ -2250,7 +2590,7 @@ tabs.inventory:AddSwitch("Buy Aura", function(bool)
 	_G.AutoHatchAura = bool
 	if bool then
 		task.spawn(function()
-			while _G.AutoHatchAura do
+			while utils.isCurrent() and _G.AutoHatchAura do
 				for _, auraName in ipairs(tabs.inventory.AuraData.SelectedList) do
 					tabs.inventory.runtime.selectedAura = tabs.inventory.PetShopFolder:FindFirstChild(auraName)
 					if tabs.inventory.runtime.selectedAura then
@@ -2288,7 +2628,7 @@ tabs.inventory:AddSwitch("Auto Evolve", function(state)
     if not state then return end
 
     task.spawn(function()
-        while tabs.inventory.AutoEvolveRunning do
+        while utils.isCurrent() and tabs.inventory.AutoEvolveRunning do
 			for _, petName in ipairs(tabs.inventory.EvolveData.SelectedList) do
 				for _ = 1, tabs.inventory.EvolveData.Amount do
 					services.ReplicatedStorage.rEvents.petEvolveEvent:FireServer("evolvePet", petName)
@@ -2327,13 +2667,13 @@ for _, player in ipairs(services.Players:GetPlayers()) do
     end
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
     if player ~= services.Players.LocalPlayer then
         tabs.inventory.TradePlayerDropdown:Add(player.DisplayName .. " | " .. player.Name)
     end
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
     tabs.inventory.TradePlayerDropdown:Remove(player.DisplayName .. " | " .. player.Name)
     if tabs.inventory.TradeData.SelectedPlayers[player.Name] then
 		utils.toggleSelection(tabs.inventory.TradeData.SelectedPlayers, tabs.inventory.TradeData.SelectedPlayerList, player.Name, tabs.inventory.TradePlayerLabel, "Selected Players: ")
@@ -2356,7 +2696,7 @@ tabs.inventory:AddSwitch("Auto Trade", function(state)
     if not state then return end
 
     task.spawn(function(generation)
-        while tabs.inventory.AutoTradeRunning and tabs.inventory.TradeData.Generation == generation do
+        while utils.isCurrent() and tabs.inventory.AutoTradeRunning and tabs.inventory.TradeData.Generation == generation do
             if #tabs.inventory.TradeData.SelectedPlayerList > 0 and #tabs.inventory.TradeData.SelectedPetList > 0 then
 				for _, username in ipairs(tabs.inventory.TradeData.SelectedPlayerList) do
 					tabs.inventory.runtime.tradePlayer = services.Players:FindFirstChild(username)
@@ -2415,7 +2755,7 @@ tabs.boosts:AddLabel("Boost Eater:")
 tabs.boosts.EggEaterData = {Running = false}
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.boosts.EggEaterData.Running then
 			tabs.boosts.runtime.tool_2122 = utils.playerData.Player.Character:FindFirstChild("Protein Egg") or utils.playerData.Player.Backpack:FindFirstChild("Protein Egg")
 			if tabs.boosts.runtime.tool_2122 then utils.playerData.Player.muscleEvent:FireServer("proteinEgg", tabs.boosts.runtime.tool_2122) end
@@ -2434,7 +2774,7 @@ tabs.boosts.BoostData = {
 }
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		if tabs.boosts.BoostData.Running then
 			for _, itemName in ipairs(tabs.boosts.BoostData.ItemList) do
 				tabs.boosts.runtime.tool_2142 = utils.playerData.Player.Character:FindFirstChild(itemName) or utils.playerData.Player.Backpack:FindFirstChild(itemName)
@@ -2467,13 +2807,13 @@ for _, player in ipairs(services.Players:GetPlayers()) do
     end
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
     if player ~= services.Players.LocalPlayer then
         tabs.boosts.EggPlayerDropdown:Add(player.DisplayName .. " | " .. player.Name)
     end
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
     tabs.boosts.EggPlayerDropdown:Remove(player.DisplayName .. " | " .. player.Name)
     if tabs.boosts.EggGifterData.SelectedPlayer == player then tabs.boosts.EggGifterData.SelectedPlayer = nil end
 end)
@@ -2520,13 +2860,13 @@ for _, player in ipairs(services.Players:GetPlayers()) do
 	end
 end
 
-services.Players.PlayerAdded:Connect(function(player)
+utils.connect(services.Players.PlayerAdded, function(player)
 	if player ~= services.Players.LocalPlayer then
 		tabs.boosts.ShakePlayerDropdown:Add(player.DisplayName .. " | " .. player.Name)
 	end
 end)
 
-services.Players.PlayerRemoving:Connect(function(player)
+utils.connect(services.Players.PlayerRemoving, function(player)
 	tabs.boosts.ShakePlayerDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 	if tabs.boosts.ShakeGifterData.SelectedPlayer == player then tabs.boosts.ShakeGifterData.SelectedPlayer = nil end
 end)
@@ -2559,7 +2899,7 @@ tabs.boosts:AddButton("Start Gifting", function()
 end)
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		tabs.boosts.runtime.proteinEggCount = 0
 		tabs.boosts.runtime.tropicalShakeCount = 0
 		if utils.playerData.Backpack then
@@ -2626,7 +2966,7 @@ tabs.stats.Data = {
 tabs.stats:AddLabel("Stats:")
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		tabs.stats.runtime.elapsedTime = tick() - tabs.stats.Data.StartTime
 		tabs.stats.runtime.days = math.floor(tabs.stats.runtime.elapsedTime / (24 * 3600))
 		tabs.stats.runtime.hours = math.floor((tabs.stats.runtime.elapsedTime % (24 * 3600)) / 3600)
@@ -2654,7 +2994,7 @@ for _, info in ipairs(tabs.stats.Data.Stats) do
 end
 
 task.spawn(function()
-	while true do
+	while utils.isCurrent() and true do
 		for _, info in ipairs(tabs.stats.Data.Stats) do
 			tabs.stats.runtime.currentValue = info.stat.Value
 			tabs.stats.runtime.gained = tabs.stats.runtime.currentValue - tabs.stats.Data.InitialValues[info.name]

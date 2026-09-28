@@ -17,7 +17,7 @@ local clickCooldown = 1
 
 local function ValidateKey(inputKey, validKeys)
     for _, validKey in pairs(validKeys) do
-        if inputKey == validKey then
+        if string.lower(tostring(inputKey)) == string.lower(tostring(validKey)) then
             return true
         end
     end

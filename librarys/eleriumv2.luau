@@ -1507,8 +1507,43 @@ function library:AddWindow(title, options)
 						function dropdown_data:Add(n)
 							local object_data = {}
 							n = tostring(n or "New Object")
+							if not objects or not objects.Parent then
+								return object_data
+							end
 
-local object = prefabs:FindFirstChild("DropdownButton"):Clone()
+							local named_objects = dropdown_objects[n]
+							local existing_object
+							if named_objects then
+								for index = #named_objects, 1, -1 do
+									local current_object = named_objects[index]
+									if not current_object or not current_object.Parent then
+										table.remove(named_objects, index)
+									elseif existing_object then
+										current_object:Destroy()
+										table.remove(named_objects, index)
+									else
+										existing_object = current_object
+									end
+								end
+
+								if #named_objects == 0 then
+									dropdown_objects[n] = nil
+								end
+							end
+
+							if existing_object then
+								function object_data:Remove()
+									dropdown_data:Remove(n)
+								end
+								return existing_object, object_data
+							end
+
+							local object_prefab = prefabs and prefabs:FindFirstChild("DropdownButton")
+							if not object_prefab then
+								return object_data
+							end
+
+							local object = object_prefab:Clone()
 
 							object.Parent = objects
 							object.Text = n
