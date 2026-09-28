@@ -3099,6 +3099,6 @@ tabs.info:AddLabel("- HalisAnteo @xyzhalis")
 tabs.info:AddLabel("")
 tabs.info:AddLabel("Silence is Open-Source!")
 tabs.info:AddLabel("")
-tabs.info.VersionLabel = tabs.info:AddLabel("Muscle Legends [V4.1.0]")
+tabs.info.VersionLabel = tabs.info:AddLabel("Muscle Legends [V4.1.1]")
 tabs.info.VersionLabel.TextSize = 20
 tabs.info.VersionLabel.Font = Enum.Font.Arcade
