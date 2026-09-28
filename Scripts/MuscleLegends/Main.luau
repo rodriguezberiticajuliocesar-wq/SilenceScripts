@@ -2507,7 +2507,7 @@ tabs.boss.collectChest = function(generation, startedAt, chest, prompt, part, ch
 		or os.clock() - startedAt >= 12
 end
 
-tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Training after Boss Kill", function(state)
+tabs.boss.ContinueSwitch = tabs.boss:AddSwitch("Continue Farming after Boss Kill", function(state)
 	tabs.boss.Data.ContinueTraining = state
 	if state and tabs.boss.Data.Phase == "Waiting" then tabs.boss.resumeTraining() end
 end)
