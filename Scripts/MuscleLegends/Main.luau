@@ -79,6 +79,162 @@ function utils.greeting(hour)
 	else return "Good Night!" end
 end
 
+function utils.createPrivacyRedactor(player, key)
+	local redactor = {
+		NameEnabled = false,
+		StatsEnabled = false,
+		OriginalNames = setmetatable({}, {__mode = "k"}),
+		OriginalStats = setmetatable({}, {__mode = "k"}),
+		NameGuis = setmetatable({}, {__mode = "k"}),
+	}
+	_G.SilencePrivacyGenerations = _G.SilencePrivacyGenerations or {}
+	_G.SilencePrivacyGenerations[key] = (_G.SilencePrivacyGenerations[key] or 0) + 1
+	local generation = _G.SilencePrivacyGenerations[key]
+
+	local function containsName(text)
+		return string.find(text, player.Name, 1, true)
+			or string.find(text, player.DisplayName, 1, true)
+	end
+
+	local function redact(storage, object, replacement)
+		local saved = storage[object]
+		if not saved or object.Text ~= saved.Redacted then
+			saved = {Original = object.Text}
+			storage[object] = saved
+		end
+		saved.Redacted = replacement
+		object.Text = replacement
+	end
+
+	local function restore(storage, stillDisabled)
+		local savedObjects = {}
+		for object, saved in pairs(storage) do
+			table.insert(savedObjects, {Object = object, Text = saved.Original})
+		end
+		table.clear(storage)
+		task.spawn(function()
+			for _ = 1, 5 do
+				if not stillDisabled() then return end
+				for _, saved in ipairs(savedObjects) do
+					if saved.Object.Parent then saved.Object.Text = saved.Text end
+				end
+				task.wait(0.1)
+			end
+		end)
+	end
+
+	local function setNameGuiHidden(nameGui)
+		if nameGui and nameGui:IsA("BillboardGui") then
+			if redactor.NameGuis[nameGui] == nil then redactor.NameGuis[nameGui] = nameGui.Enabled end
+			nameGui.Enabled = false
+		end
+	end
+
+	local function showNameGui(nameGui)
+		if not nameGui or not nameGui:IsA("BillboardGui") then return end
+		nameGui.Enabled = true
+	end
+
+	local function isTopStat(object)
+		if not string.find(object.Text, "%d") or object.AbsolutePosition.Y > 150 then return false end
+		local current = object
+		for _ = 1, 6 do
+			if not current then break end
+			local name = string.lower(current.Name)
+			if string.find(name, "strength", 1, true) or string.find(name, "gem", 1, true) then return true end
+			current = current.Parent
+		end
+		return false
+	end
+
+	local function redactLeaderboardStats(nameObject, coreGui)
+		local nameCenterY = nameObject.AbsolutePosition.Y + nameObject.AbsoluteSize.Y / 2
+		local minimumX = nameObject.AbsolutePosition.X + nameObject.AbsoluteSize.X * 0.5
+		local tolerance = math.max(6, nameObject.AbsoluteSize.Y * 0.5)
+		for _, valueObject in ipairs(coreGui:GetDescendants()) do
+			if (valueObject:IsA("TextLabel") or valueObject:IsA("TextButton"))
+				and valueObject ~= nameObject and string.find(valueObject.Text, "%d") then
+				local valueCenterY = valueObject.AbsolutePosition.Y + valueObject.AbsoluteSize.Y / 2
+				if valueObject.AbsolutePosition.X >= minimumX
+					and math.abs(valueCenterY - nameCenterY) <= tolerance then
+					redact(redactor.OriginalStats, valueObject, "####")
+				end
+			end
+		end
+	end
+
+	local function update()
+		local character = player.Character
+		if redactor.NameEnabled and character then
+			setNameGuiHidden(character:FindFirstChild("nameGui", true))
+		end
+		if redactor.NameEnabled then
+			local namedCharacter = workspace:FindFirstChild("HenneZocktTV")
+			local head = namedCharacter and namedCharacter:FindFirstChild("Head")
+			setNameGuiHidden(head and head:FindFirstChild("nameGui"))
+		end
+		if redactor.StatsEnabled then
+			for _, object in ipairs(player:WaitForChild("PlayerGui"):GetDescendants()) do
+				if (object:IsA("TextLabel") or object:IsA("TextButton")) and isTopStat(object) then
+					redact(redactor.OriginalStats, object, "####")
+				end
+			end
+		end
+
+		local coreGui = game:GetService("CoreGui")
+		for _, object in ipairs(coreGui:GetDescendants()) do
+			if object:IsA("TextLabel") or object:IsA("TextButton") then
+				local saved = redactor.OriginalNames[object]
+				if containsName(object.Text) or (saved and containsName(saved.Original)) then
+					if redactor.StatsEnabled then redactLeaderboardStats(object, coreGui) end
+					if redactor.NameEnabled then redact(redactor.OriginalNames, object, "########") end
+				end
+			end
+		end
+	end
+
+	function redactor:SetNameEnabled(enabled)
+		self.NameEnabled = enabled
+		if not enabled then
+			restore(self.OriginalNames, function() return not self.NameEnabled end)
+			local savedNameGuis = {}
+			for nameGui in pairs(self.NameGuis) do table.insert(savedNameGuis, nameGui) end
+			table.clear(self.NameGuis)
+			task.spawn(function()
+				for _ = 1, 10 do
+					if self.NameEnabled then return end
+					local currentCharacter = player.Character
+					local currentNameGui = currentCharacter and currentCharacter:FindFirstChild("nameGui", true)
+					showNameGui(currentNameGui)
+					local namedCharacter = workspace:FindFirstChild("HenneZocktTV")
+					local head = namedCharacter and namedCharacter:FindFirstChild("Head")
+					local explicitNameGui = head and head:FindFirstChild("nameGui")
+					showNameGui(explicitNameGui)
+					for _, nameGui in ipairs(savedNameGuis) do
+						if nameGui.Parent then showNameGui(nameGui) end
+					end
+					task.wait(0.1)
+				end
+			end)
+		end
+		pcall(update)
+	end
+
+	function redactor:SetStatsEnabled(enabled)
+		self.StatsEnabled = enabled
+		if not enabled then restore(self.OriginalStats, function() return not self.StatsEnabled end) end
+		pcall(update)
+	end
+
+	task.spawn(function()
+		while _G.SilencePrivacyGenerations[key] == generation do
+			if redactor.NameEnabled or redactor.StatsEnabled then pcall(update) end
+			task.wait(1)
+		end
+	end)
+	return redactor
+end
+
 function utils.toggleSelection(selected, selectedList, value, label, prefix)
 	if selected[value] then
 		selected[value] = nil
@@ -324,6 +480,16 @@ tabs.main.VisibilitySettings.HidePopupsSwitch = tabs.main:AddSwitch("Hide Popups
 	tabs.main.VisibilitySettings.SavePlayerSizeEvent:FireServer("showPopupsOption")
 end)
 tabs.main.VisibilitySettings.HidePopupsSwitch:Set(true)
+
+tabs.main.PrivacyRedactor = utils.createPrivacyRedactor(utils.playerData.Player, "Main")
+tabs.main.RedactNameSwitch = tabs.main:AddSwitch("Redact Name", function(state)
+	tabs.main.PrivacyRedactor:SetNameEnabled(state)
+end)
+tabs.main.RedactNameSwitch:Set(true)
+tabs.main.RedactStatsSwitch = tabs.main:AddSwitch("Redact Stats", function(state)
+	tabs.main.PrivacyRedactor:SetStatsEnabled(state)
+end)
+tabs.main.RedactStatsSwitch:Set(true)
 
 utils.connect(utils.playerData.Player.CharacterAdded, function(newChar)
 	if tabs.main.Protection.PositionLock.Enabled and newChar:WaitForChild("HumanoidRootPart", 5) then
@@ -888,16 +1054,31 @@ tabs.killing.isBlacklisted = function(player)
 end
 
 tabs.killing.RemoveWhitelistDropdown = nil
+tabs.killing.WhitelistDisplayNames = {}
+
+tabs.killing.getWhitelistDisplayName = function(username)
+	local cached = tabs.killing.WhitelistDisplayNames[username]
+	if cached then return cached end
+	local player = services.Players:FindFirstChild(username)
+	if player then
+		tabs.killing.WhitelistDisplayNames[username] = player.DisplayName
+		return player.DisplayName
+	end
+	return username
+end
+
 tabs.killing.WhitelistDropdown = tabs.killing:AddDropdown("Add to Whitelist", function(selectedText)
 	tabs.killing.runtime.playerName_817 = selectedText:match("| (.+)$")
 	if tabs.killing.runtime.playerName_817 then
 		tabs.killing.runtime.playerName_817 = tabs.killing.runtime.playerName_817:gsub("^%s*(.-)%s*$", "%1")
+		local selectedPlayer = services.Players:FindFirstChild(tabs.killing.runtime.playerName_817)
+		if selectedPlayer then tabs.killing.WhitelistDisplayNames[selectedPlayer.Name] = selectedPlayer.DisplayName end
 		for _, name in ipairs(_G.whitelistedPlayers) do
 			if name:lower() == tabs.killing.runtime.playerName_817:lower() then return end
 		end
 		table.insert(_G.whitelistedPlayers, tabs.killing.runtime.playerName_817)
 		if tabs.killing.RemoveWhitelistDropdown then
-			tabs.killing.RemoveWhitelistDropdown:Add(tabs.killing.runtime.playerName_817)
+			tabs.killing.RemoveWhitelistDropdown:Add(tabs.killing.getWhitelistDisplayName(tabs.killing.runtime.playerName_817))
 		end
 	end
 end)
@@ -1040,14 +1221,29 @@ end)
 tabs.killing:AddLabel("Target Killing:")
 
 tabs.killing.RemoveKilllistDropdown = nil
+tabs.killing.KilllistDisplayNames = {}
+
+tabs.killing.getKilllistDisplayName = function(username)
+	local cached = tabs.killing.KilllistDisplayNames[username]
+	if cached then return cached end
+	local player = services.Players:FindFirstChild(username)
+	if player then
+		tabs.killing.KilllistDisplayNames[username] = player.DisplayName
+		return player.DisplayName
+	end
+	return username
+end
+
 tabs.killing.BlacklistDropdown = tabs.killing:AddDropdown("Add to Killlist", function(selectedText)
-	tabs.killing.runtime.playerName_967 = selectedText:match("| (.+)$")
-	if tabs.killing.runtime.playerName_967 then
-		tabs.killing.runtime.playerName_967 = tabs.killing.runtime.playerName_967:gsub("^%s*(.-)%s*$", "%1")
+	local selectedUsername = selectedText:match("| (.+)$")
+	local selectedPlayer = selectedUsername and services.Players:FindFirstChild(selectedUsername:gsub("^%s*(.-)%s*$", "%1"))
+	if selectedPlayer then
+		tabs.killing.runtime.playerName_967 = selectedPlayer.Name
+		tabs.killing.KilllistDisplayNames[selectedPlayer.Name] = selectedPlayer.DisplayName
 		if not tabs.killing.isBlacklisted({Name = tabs.killing.runtime.playerName_967}) then
 			table.insert(_G.blacklistedPlayers, tabs.killing.runtime.playerName_967)
 			if tabs.killing.RemoveKilllistDropdown then
-				tabs.killing.RemoveKilllistDropdown:Add(tabs.killing.runtime.playerName_967)
+				tabs.killing.RemoveKilllistDropdown:Add(selectedPlayer.DisplayName)
 			end
 		end
 	end
@@ -1055,14 +1251,18 @@ end)
 
 for _, player in ipairs(services.Players:GetPlayers()) do
 	if player ~= services.Players.LocalPlayer then
+		tabs.killing.WhitelistDisplayNames[player.Name] = player.DisplayName
 		tabs.killing.WhitelistDropdown:Add(player.DisplayName .. " | " .. player.Name)
+		tabs.killing.KilllistDisplayNames[player.Name] = player.DisplayName
 		tabs.killing.BlacklistDropdown:Add(player.DisplayName .. " | " .. player.Name)
 	end
 end
 
 utils.connect(services.Players.PlayerAdded, function(player)
 	if player ~= services.Players.LocalPlayer then
+		tabs.killing.WhitelistDisplayNames[player.Name] = player.DisplayName
 		tabs.killing.WhitelistDropdown:Add(player.DisplayName .. " | " .. player.Name)
+		tabs.killing.KilllistDisplayNames[player.Name] = player.DisplayName
 		tabs.killing.BlacklistDropdown:Add(player.DisplayName .. " | " .. player.Name)
 	end
 end)
@@ -1572,17 +1772,18 @@ tabs.killing:AddSwitch("Toggle Ring", function(bool)
 end)
 
 tabs.killing.WhitelistLabel = tabs.killing:AddLabel("Whitelist: None")
-tabs.killing.RemoveWhitelistDropdown = tabs.killing:AddDropdown("Remove from Whitelist", function(selectedName)
+tabs.killing.RemoveWhitelistDropdown = tabs.killing:AddDropdown("Remove from Whitelist", function(selectedDisplayName)
 	for index = #_G.whitelistedPlayers, 1, -1 do
-		if _G.whitelistedPlayers[index]:lower() == selectedName:lower() then
+		if tabs.killing.getWhitelistDisplayName(_G.whitelistedPlayers[index]) == selectedDisplayName then
 			table.remove(_G.whitelistedPlayers, index)
+			break
 		end
 	end
-	tabs.killing.RemoveWhitelistDropdown:Remove(selectedName)
+	tabs.killing.RemoveWhitelistDropdown:Remove(selectedDisplayName)
 end)
 
 for _, playerName in ipairs(_G.whitelistedPlayers) do
-	tabs.killing.RemoveWhitelistDropdown:Add(playerName)
+	tabs.killing.RemoveWhitelistDropdown:Add(tabs.killing.getWhitelistDisplayName(playerName))
 end
 
 tabs.killing:AddButton("Clear Whitelist", function()
@@ -1591,17 +1792,18 @@ tabs.killing:AddButton("Clear Whitelist", function()
 end)
 
 tabs.killing.BlacklistLabel = tabs.killing:AddLabel("Killlist: None")
-tabs.killing.RemoveKilllistDropdown = tabs.killing:AddDropdown("Remove from Killlist", function(selectedName)
+tabs.killing.RemoveKilllistDropdown = tabs.killing:AddDropdown("Remove from Killlist", function(selectedDisplayName)
 	for index = #_G.blacklistedPlayers, 1, -1 do
-		if _G.blacklistedPlayers[index]:lower() == selectedName:lower() then
+		if tabs.killing.getKilllistDisplayName(_G.blacklistedPlayers[index]) == selectedDisplayName then
 			table.remove(_G.blacklistedPlayers, index)
+			break
 		end
 	end
-	tabs.killing.RemoveKilllistDropdown:Remove(selectedName)
+	tabs.killing.RemoveKilllistDropdown:Remove(selectedDisplayName)
 end)
 
 for _, playerName in ipairs(_G.blacklistedPlayers) do
-	tabs.killing.RemoveKilllistDropdown:Add(playerName)
+	tabs.killing.RemoveKilllistDropdown:Add(tabs.killing.getKilllistDisplayName(playerName))
 end
 
 tabs.killing:AddButton("Clear Killlist", function()
@@ -1611,8 +1813,16 @@ end)
 
 task.spawn(function()
 	while utils.isCurrent() and true do
-		tabs.killing.WhitelistLabel.Text = #_G.whitelistedPlayers == 0 and "Whitelist: None" or "Whitelist: " .. table.concat(_G.whitelistedPlayers, ", ")
-		tabs.killing.BlacklistLabel.Text = #_G.blacklistedPlayers == 0 and "Killlist: None" or "Killlist: " .. table.concat(_G.blacklistedPlayers, ", ")
+		local displayedWhitelist = {}
+		for _, username in ipairs(_G.whitelistedPlayers) do
+			table.insert(displayedWhitelist, tabs.killing.getWhitelistDisplayName(username))
+		end
+		tabs.killing.WhitelistLabel.Text = #displayedWhitelist == 0 and "Whitelist: None" or "Whitelist: " .. table.concat(displayedWhitelist, ", ")
+		local displayedKilllist = {}
+		for _, username in ipairs(_G.blacklistedPlayers) do
+			table.insert(displayedKilllist, tabs.killing.getKilllistDisplayName(username))
+		end
+		tabs.killing.BlacklistLabel.Text = #displayedKilllist == 0 and "Killlist: None" or "Killlist: " .. table.concat(displayedKilllist, ", ")
 		task.wait(0.01)
 	end
 end)

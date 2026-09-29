@@ -24,6 +24,162 @@ local lp = {
     displayname = services.players.LocalPlayer.DisplayName
 }
 
+local function createPrivacyRedactor(player, key)
+    local redactor = {
+        NameEnabled = false,
+        StatsEnabled = false,
+        OriginalNames = setmetatable({}, {__mode = "k"}),
+        OriginalStats = setmetatable({}, {__mode = "k"}),
+        NameGuis = setmetatable({}, {__mode = "k"}),
+    }
+    _G.SilencePrivacyGenerations = _G.SilencePrivacyGenerations or {}
+    _G.SilencePrivacyGenerations[key] = (_G.SilencePrivacyGenerations[key] or 0) + 1
+    local generation = _G.SilencePrivacyGenerations[key]
+
+    local function containsName(text)
+        return string.find(text, player.Name, 1, true)
+            or string.find(text, player.DisplayName, 1, true)
+    end
+
+    local function redact(storage, object, replacement)
+        local saved = storage[object]
+        if not saved or object.Text ~= saved.Redacted then
+            saved = {Original = object.Text}
+            storage[object] = saved
+        end
+        saved.Redacted = replacement
+        object.Text = replacement
+    end
+
+    local function restore(storage, stillDisabled)
+        local savedObjects = {}
+        for object, saved in pairs(storage) do
+            table.insert(savedObjects, {Object = object, Text = saved.Original})
+        end
+        table.clear(storage)
+        task.spawn(function()
+            for _ = 1, 5 do
+                if not stillDisabled() then return end
+                for _, saved in ipairs(savedObjects) do
+                    if saved.Object.Parent then saved.Object.Text = saved.Text end
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+
+    local function setNameGuiHidden(nameGui)
+        if nameGui and nameGui:IsA("BillboardGui") then
+            if redactor.NameGuis[nameGui] == nil then redactor.NameGuis[nameGui] = nameGui.Enabled end
+            nameGui.Enabled = false
+        end
+    end
+
+    local function showNameGui(nameGui)
+        if not nameGui or not nameGui:IsA("BillboardGui") then return end
+        nameGui.Enabled = true
+    end
+
+    local function isTopStat(object)
+        if not string.find(object.Text, "%d") or object.AbsolutePosition.Y > 150 then return false end
+        local current = object
+        for _ = 1, 6 do
+            if not current then break end
+            local name = string.lower(current.Name)
+            if string.find(name, "strength", 1, true) or string.find(name, "gem", 1, true) then return true end
+            current = current.Parent
+        end
+        return false
+    end
+
+    local function redactLeaderboardStats(nameObject, coreGui)
+        local nameCenterY = nameObject.AbsolutePosition.Y + nameObject.AbsoluteSize.Y / 2
+        local minimumX = nameObject.AbsolutePosition.X + nameObject.AbsoluteSize.X * 0.5
+        local tolerance = math.max(6, nameObject.AbsoluteSize.Y * 0.5)
+        for _, valueObject in ipairs(coreGui:GetDescendants()) do
+            if (valueObject:IsA("TextLabel") or valueObject:IsA("TextButton"))
+                and valueObject ~= nameObject and string.find(valueObject.Text, "%d") then
+                local valueCenterY = valueObject.AbsolutePosition.Y + valueObject.AbsoluteSize.Y / 2
+                if valueObject.AbsolutePosition.X >= minimumX
+                    and math.abs(valueCenterY - nameCenterY) <= tolerance then
+                    redact(redactor.OriginalStats, valueObject, "####")
+                end
+            end
+        end
+    end
+
+    local function update()
+        local character = player.Character
+        if redactor.NameEnabled and character then
+            setNameGuiHidden(character:FindFirstChild("nameGui", true))
+        end
+        if redactor.NameEnabled then
+            local namedCharacter = workspace:FindFirstChild("HenneZocktTV")
+            local head = namedCharacter and namedCharacter:FindFirstChild("Head")
+            setNameGuiHidden(head and head:FindFirstChild("nameGui"))
+        end
+        if redactor.StatsEnabled then
+            for _, object in ipairs(player:WaitForChild("PlayerGui"):GetDescendants()) do
+                if (object:IsA("TextLabel") or object:IsA("TextButton")) and isTopStat(object) then
+                    redact(redactor.OriginalStats, object, "####")
+                end
+            end
+        end
+
+        local coreGui = game:GetService("CoreGui")
+        for _, object in ipairs(coreGui:GetDescendants()) do
+            if object:IsA("TextLabel") or object:IsA("TextButton") then
+                local saved = redactor.OriginalNames[object]
+                if containsName(object.Text) or (saved and containsName(saved.Original)) then
+                    if redactor.StatsEnabled then redactLeaderboardStats(object, coreGui) end
+                    if redactor.NameEnabled then redact(redactor.OriginalNames, object, "########") end
+                end
+            end
+        end
+    end
+
+    function redactor:SetNameEnabled(enabled)
+        self.NameEnabled = enabled
+        if not enabled then
+            restore(self.OriginalNames, function() return not self.NameEnabled end)
+            local savedNameGuis = {}
+            for nameGui in pairs(self.NameGuis) do table.insert(savedNameGuis, nameGui) end
+            table.clear(self.NameGuis)
+            task.spawn(function()
+                for _ = 1, 10 do
+                    if self.NameEnabled then return end
+                    local currentCharacter = player.Character
+                    local currentNameGui = currentCharacter and currentCharacter:FindFirstChild("nameGui", true)
+                    showNameGui(currentNameGui)
+                    local namedCharacter = workspace:FindFirstChild("HenneZocktTV")
+                    local head = namedCharacter and namedCharacter:FindFirstChild("Head")
+                    local explicitNameGui = head and head:FindFirstChild("nameGui")
+                    showNameGui(explicitNameGui)
+                    for _, nameGui in ipairs(savedNameGuis) do
+                        if nameGui.Parent then showNameGui(nameGui) end
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+        pcall(update)
+    end
+
+    function redactor:SetStatsEnabled(enabled)
+        self.StatsEnabled = enabled
+        if not enabled then restore(self.OriginalStats, function() return not self.StatsEnabled end) end
+        pcall(update)
+    end
+
+    task.spawn(function()
+        while _G.SilencePrivacyGenerations[key] == generation do
+            if redactor.NameEnabled or redactor.StatsEnabled then pcall(update) end
+            task.wait(1)
+        end
+    end)
+    return redactor
+end
+
 lp.player.Idled:Connect(function()
     services.virtualinputmanager:SendKeyEvent(true, Enum.KeyCode.Y, false, game)
     task.wait(0.05)
@@ -73,6 +229,7 @@ local silence = library:AddWindow("Silence | Fast Farming - " .. greeting(), {
     min_size = Vector2.new(500, 500),
     can_resize = false
 })
+local privacyRedactor = createPrivacyRedactor(lp.player, "Farming")
 
 _G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
 local titleGeneration = _G.SilenceFarmingTitleGeneration
@@ -88,8 +245,8 @@ end)
 
 local tabs = {
     rebirths = silence:AddTab("Rebirths"),
-    strength = silence:AddTab("Strength (Main)"),
-    strength2 = silence:AddTab("Strength (If Main lags)"),
+    strength = silence:AddTab("Strength"),
+    strength2 = silence:AddTab("Strength (Slower)"),
     other = silence:AddTab("Other"),
     info = silence:AddTab("Info")
 }
@@ -810,7 +967,6 @@ task.spawn(function()
 end)
 
 tabs.strength:AddLabel("Reaching Average Speed takes some time!")
-tabs.strength:AddLabel("\nFarming also wont stop if you stop it since its too fast for the Server.")
 
 -- Strength Tab (For bad devices)
 
@@ -1040,7 +1196,7 @@ task.spawn(function()
         task.wait(1)
     end
 end)
-
+tabs.strength2:AddLabel("This Farm is for low end devices, It will be slower then the other one")
 tabs.strength2:AddLabel("For me, 20-40 works the best. Try around!")
 
 -- Other Tab
@@ -1264,8 +1420,14 @@ end)
 tabs.other.HidePopupsSwitch:Set(true)
 tabs.other.popupSwitchInitializing = false
 
+tabs.other.RedactNameSwitch = tabs.other:AddSwitch("Redact Name", function(state)
+    privacyRedactor:SetNameEnabled(state)
+end)
+tabs.other.RedactNameSwitch:Set(true)
+
 tabs.other.RedactStatsSwitch = tabs.other:AddSwitch("Redact Stats", function(state)
     tabs.other.redactStats = state
+    privacyRedactor:SetStatsEnabled(state)
     tabs.rebirths.updateStats()
     tabs.strength.updateStats()
     tabs.strength2.updateStats()

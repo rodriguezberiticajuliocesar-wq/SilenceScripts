@@ -962,6 +962,107 @@ end
 local windows = 0
 local library = {}
 
+function library:CreatePrivacyRedactor(player, redactorKey)
+	local redactor = {
+		Enabled = false,
+		OriginalText = setmetatable({}, {__mode = "k"}),
+	}
+	local key = tostring(redactorKey or "Default")
+	_G.SilencePrivacyGenerations = _G.SilencePrivacyGenerations or {}
+	_G.SilencePrivacyGenerations[key] = (_G.SilencePrivacyGenerations[key] or 0) + 1
+	local generation = _G.SilencePrivacyGenerations[key]
+
+	local function replacePlain(text, search, replacement)
+		local startPosition = string.find(text, search, 1, true)
+		while startPosition do
+			text = string.sub(text, 1, startPosition - 1) .. replacement
+				.. string.sub(text, startPosition + #search)
+			startPosition = string.find(text, search, startPosition + #replacement, true)
+		end
+		return text
+	end
+
+	local function setRedactedText(textObject, redactedText)
+		local saved = redactor.OriginalText[textObject]
+		if not saved or textObject.Text ~= saved.Redacted then
+			saved = {Original = textObject.Text}
+			redactor.OriginalText[textObject] = saved
+		end
+		saved.Redacted = redactedText
+		textObject.Text = redactedText
+	end
+
+	local function redactName(textObject)
+		local original = textObject.Text
+		local redacted = replacePlain(original, player.Name, "########")
+		if player.DisplayName ~= player.Name then
+			redacted = replacePlain(redacted, player.DisplayName, "########")
+		end
+		if redacted ~= original then
+			setRedactedText(textObject, redacted)
+			return true
+		end
+		return false
+	end
+
+	local function redactScoreboard()
+		local coreGui = game:GetService("CoreGui")
+		for _, object in ipairs(coreGui:GetDescendants()) do
+			local saved = redactor.OriginalText[object]
+			local wasName = saved and (string.find(saved.Original, player.Name, 1, true)
+				or string.find(saved.Original, player.DisplayName, 1, true))
+			if (object:IsA("TextLabel") or object:IsA("TextButton")) and (redactName(object) or wasName) then
+				local row = object.Parent
+				if row then
+					for _, valueObject in ipairs(row:GetDescendants()) do
+						if (valueObject:IsA("TextLabel") or valueObject:IsA("TextButton"))
+							and valueObject ~= object and string.find(valueObject.Text, "%d") then
+							setRedactedText(valueObject, "####")
+						end
+					end
+				end
+			end
+		end
+	end
+
+	local function redactNametag()
+		local character = player.Character
+		if not character then return end
+		for _, object in ipairs(character:GetDescendants()) do
+			if object:IsA("TextLabel") or object:IsA("TextButton") then
+				redactName(object)
+			end
+		end
+	end
+
+	function redactor:SetEnabled(enabled)
+		self.Enabled = enabled
+		if enabled then
+			pcall(redactNametag)
+			pcall(redactScoreboard)
+		else
+			for object, saved in pairs(self.OriginalText) do
+				if object and object.Parent then
+					object.Text = saved.Original
+				end
+			end
+			table.clear(self.OriginalText)
+		end
+	end
+
+	task.spawn(function()
+		while _G.SilencePrivacyGenerations[key] == generation do
+			if redactor.Enabled then
+				pcall(redactNametag)
+				pcall(redactScoreboard)
+			end
+			task.wait(1)
+		end
+	end)
+
+	return redactor
+end
+
 local function format_windows()
 	local ull = prefabs:FindFirstChild("UIListLayout"):Clone()
 	ull.Parent = windowsFrame
@@ -1189,7 +1290,9 @@ function library:AddWindow(title, options)
 
 						label.Parent = new_tab
 						label.Text = label_text
-						label.Size = UDim2.new(0, gNameLen(label), 0, 20)
+						label.Size = UDim2.new(1, -10, 0, 20)
+						label.TextWrapped = true
+						label.AutomaticSize = Enum.AutomaticSize.Y
 						label.ZIndex = label.ZIndex + (windows * 10)
 
 						return label
