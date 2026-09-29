@@ -1,6 +1,6 @@
 --[[
     Silence - Ml Main
-    by Henne @xyzhenrik_
+    by Henrik @xyzhenrik
 ]]
 
 local services = {
