@@ -44,7 +44,17 @@ function KeySystem:CreateKeySystem(Config)
     local Keys = Config.Keys or {"", "", ""}
     local MainScriptCallback = Config.MainScriptCallback or function(success) end
     local SaveKey = Config.SaveKey == true
-    local KeyFileName = Config.KeyFileName or "SilenceKey.txt"
+    local KeyFileName = Config.KeyFileName or "Silence/SilenceKey.txt"
+
+    local function EnsureKeyFolder()
+        if type(makefolder) ~= "function" then return end
+        local folderPath = KeyFileName:match("^(.*)/[^/]+$")
+        if folderPath and (type(isfolder) ~= "function" or not isfolder(folderPath)) then
+            pcall(makefolder, folderPath)
+        end
+    end
+
+    EnsureKeyFolder()
 
     if SaveKey and type(isfile) == "function" and type(readfile) == "function" then
         local readSuccess, savedKey = pcall(function()

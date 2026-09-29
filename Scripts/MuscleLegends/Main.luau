@@ -12,7 +12,8 @@ local services = {
 	UserInputService = game:GetService("UserInputService"),
 	VirtualInputManager = game:GetService("VirtualInputManager"),
 	RunService = game:GetService("RunService"),
-	CollectionService = game:GetService("CollectionService")
+	CollectionService = game:GetService("CollectionService"),
+	HttpService = game:GetService("HttpService")
 }
 
 local utils = {}
@@ -481,15 +482,49 @@ tabs.main.VisibilitySettings.HidePopupsSwitch = tabs.main:AddSwitch("Hide Popups
 end)
 tabs.main.VisibilitySettings.HidePopupsSwitch:Set(true)
 
+tabs.main.RedactConfigPath = "Silence/MuscleLegendsMainConfig.json"
+tabs.main.RedactConfig = {
+	RedactName = false,
+	RedactStats = false,
+}
+
+tabs.main.loadRedactConfig = function()
+	if type(isfile) ~= "function" or type(readfile) ~= "function" then return end
+	pcall(function()
+		if not isfile(tabs.main.RedactConfigPath) then return end
+		local savedConfig = services.HttpService:JSONDecode(readfile(tabs.main.RedactConfigPath))
+		if typeof(savedConfig) == "table" then
+			tabs.main.RedactConfig.RedactName = savedConfig.RedactName == true
+			tabs.main.RedactConfig.RedactStats = savedConfig.RedactStats == true
+		end
+	end)
+end
+
+tabs.main.saveRedactConfig = function()
+	if type(writefile) ~= "function" then return end
+	pcall(function()
+		if type(makefolder) == "function"
+			and (type(isfolder) ~= "function" or not isfolder("Silence")) then
+			pcall(makefolder, "Silence")
+		end
+		writefile(tabs.main.RedactConfigPath, services.HttpService:JSONEncode(tabs.main.RedactConfig))
+	end)
+end
+
+tabs.main.loadRedactConfig()
 tabs.main.PrivacyRedactor = utils.createPrivacyRedactor(utils.playerData.Player, "Main")
 tabs.main.RedactNameSwitch = tabs.main:AddSwitch("Redact Name", function(state)
 	tabs.main.PrivacyRedactor:SetNameEnabled(state)
+	tabs.main.RedactConfig.RedactName = state
+	tabs.main.saveRedactConfig()
 end)
-tabs.main.RedactNameSwitch:Set(true)
+tabs.main.RedactNameSwitch:Set(tabs.main.RedactConfig.RedactName)
 tabs.main.RedactStatsSwitch = tabs.main:AddSwitch("Redact Stats", function(state)
 	tabs.main.PrivacyRedactor:SetStatsEnabled(state)
+	tabs.main.RedactConfig.RedactStats = state
+	tabs.main.saveRedactConfig()
 end)
-tabs.main.RedactStatsSwitch:Set(true)
+tabs.main.RedactStatsSwitch:Set(tabs.main.RedactConfig.RedactStats)
 
 utils.connect(utils.playerData.Player.CharacterAdded, function(newChar)
 	if tabs.main.Protection.PositionLock.Enabled and newChar:WaitForChild("HumanoidRootPart", 5) then
