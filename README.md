@@ -6,11 +6,7 @@ Silence is a multi-game Roblox script project with automatic game detection and 
 
 - Muscle Legends
 - Tap Simulator
-- Hyper Speed Runner
-- +1 Speed Keyboard Escape
-- Murder Mystery 2
-- Survive Zombie Arena
-
+  
 ## Usage
 
 1. Join one of the supported games.
