@@ -1566,28 +1566,24 @@ tabs.other:AddButton("Equip Rep Pets", function()
 end)
 
 tabs.info:Show()
-tabs.info:AddLabel("Made with ♥️ by Henne and Muki").TextSize = 17
-tabs.info:AddLabel("Any issue? Ping @xyzhenrik_ or @mukimagdich on Discord").TextSize = 17
-tabs.info:AddLabel("Official Discord: discord.gg/9eFf93Kg8D").TextSize = 17
+tabs.info:AddLabel("Made by xyzhenrik")
+tabs.info:AddLabel("Any issues? Create a Ticket on Discord")
+tabs.info:AddLabel("Official Discord: discord.gg/9eFf93Kg8D")
 tabs.info:AddButton("Copy Invite", function()
-    tabs.info.link = "https://discord.gg/9eFf93Kg8D"
-    if setclipboard then
-        setclipboard(tabs.info.link)
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Link Copied!";
-            Text = "You can continue to Discord now.";
-            Duration = 3;
-        })
-    else
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Error!";
-            Text = "Clipboard not Supported.";
-            Duration = 3;
-        })
-    end
+	if setclipboard then
+		setclipboard("https://discord.gg/9eFf93Kg8D")
+		game.StarterGui:SetCore("SendNotification", {Title = "Link Copied!", Text = "You can continue to Discord now.", Duration = 3})
+	else
+		game.StarterGui:SetCore("SendNotification", {Title = "Error!", Text = "Clipboard not Supported.", Duration = 3})
+	end
 end)
-
 tabs.info:AddLabel("")
-tabs.info.wLabel = tabs.info:AddLabel("Farming [V4.1.2]")
-tabs.info.wLabel.TextSize = 20
-tabs.info.wLabel.Font = Enum.Font.Arcade_
+tabs.info:AddLabel("Contributors:").TextSize = 17
+tabs.info:AddLabel("- Henrik @xyzhenrik")
+tabs.info:AddLabel("- Muki @mukimagdich")
+tabs.info:AddLabel("")
+tabs.info:AddLabel("Silence is Open-Source!")
+tabs.info:AddLabel("")
+tabs.info.VersionLabel = tabs.info:AddLabel("Muscle Legends [V4.1.3]")
+tabs.info.VersionLabel.TextSize = 20
+tabs.info.VersionLabel.Font = Enum.Font.Arcade
