@@ -71,12 +71,12 @@ function utils.formatWithCommas(n, formatted, separatorCount)
 end
 
 function utils.greeting(hour)
-	hour = os.date("*t").hour
-	if hour >= 6 and hour < 12 then return "Good Morning " .. utils.playerData.DisplayName
-	elseif hour >= 12 and hour < 13 then return "Good Noon " .. utils.playerData.DisplayName
-	elseif hour >= 13 and hour < 19 then return "Good Afternoon " .. utils.playerData.DisplayName
-	elseif hour >= 19 and hour < 22 then return "Good Evening " .. utils.playerData.DisplayName
-	else return "Good Night " .. utils.playerData.DisplayName end
+	hour = hour or os.date("*t").hour
+	if hour >= 6 and hour < 12 then return "Good Morning!"
+	elseif hour >= 12 and hour < 13 then return "Good Noon!"
+	elseif hour >= 13 and hour < 19 then return "Good Afternoon!"
+	elseif hour >= 19 and hour < 22 then return "Good Evening!"
+	else return "Good Night!" end
 end
 
 function utils.toggleSelection(selected, selectedList, value, label, prefix)
@@ -110,13 +110,22 @@ function utils.deleteAds()
 end
 utils.deleteAds()
 
-utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/librarys/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
+utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
 
 utils.silence = utils.library:AddWindow("Silence | Main - " .. utils.greeting(), {
 	main_color = Color3.fromRGB(138, 0, 0),
 	min_size = Vector2.new(566, 750),
 	can_resize = true,
 })
+
+task.spawn(function()
+	while utils.isCurrent() do
+		task.wait(60)
+		if utils.isCurrent() then
+			utils.silence:SetTitle("Silence | Main - " .. utils.greeting())
+		end
+	end
+end)
 
 utils.connect(utils.playerData.Player.Idled, function()
 	services.VirtualUser:CaptureController()

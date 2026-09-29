@@ -58,12 +58,33 @@ deleteBodyMovementScript()
 
 services.muscleEvent = lp.player:WaitForChild("muscleEvent")
 
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/librarys/eleriumv2.luau"))()
-local silence = library:AddWindow("Silence | Fast Farming - Hey, " .. lp.displayname .. "!", {
+local function greeting(hour)
+    hour = hour or os.date("*t").hour
+    if hour >= 6 and hour < 12 then return "Good Morning!"
+    elseif hour >= 12 and hour < 13 then return "Good Noon!"
+    elseif hour >= 13 and hour < 19 then return "Good Afternoon!"
+    elseif hour >= 19 and hour < 22 then return "Good Evening!"
+    else return "Good Night!" end
+end
+
+local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
+local silence = library:AddWindow("Silence | Fast Farming - " .. greeting(), {
     main_color = Color3.fromRGB(138, 0, 0),
     min_size = Vector2.new(500, 500),
     can_resize = false
 })
+
+_G.SilenceFarmingTitleGeneration = (_G.SilenceFarmingTitleGeneration or 0) + 1
+local titleGeneration = _G.SilenceFarmingTitleGeneration
+
+task.spawn(function()
+    while titleGeneration == _G.SilenceFarmingTitleGeneration do
+        task.wait(60)
+        if titleGeneration == _G.SilenceFarmingTitleGeneration then
+            silence:SetTitle("Silence | Fast Farming - " .. greeting())
+        end
+    end
+end)
 
 local tabs = {
     rebirths = silence:AddTab("Rebirths"),
@@ -83,6 +104,12 @@ function formatNumber(num)
     if num >= 1e6 then return string.format("%.2fM", num/1e6) end
     if num >= 1e3 then return string.format("%.2fK", num/1e3) end
     return string.format("%.0f", num)
+end
+
+tabs.other.redactStats = true
+
+local function formatCurrentStat(value)
+    return tabs.other.redactStats and "####" or formatNumber(value)
 end
 
 function formatPace(ratePerSecond)
@@ -338,13 +365,13 @@ tabs.rebirths.repsPerBurst = 12
 tabs.rebirths.rebirthValueBefore = tabs.rebirths.rebirths.Value
 tabs.rebirths.Status = tabs.rebirths:AddLabel("Status: Inactive")
 tabs.rebirths.Runtime = tabs.rebirths:AddLabel("Runtime: 0d 0h 0m 0s")
-tabs.rebirths.RebirthStats = tabs.rebirths:AddLabel("Rebirths: " .. formatNumber(tabs.rebirths.rebirths.Value) .. " | Gained: 0")
+tabs.rebirths.RebirthStats = tabs.rebirths:AddLabel("Rebirths: " .. formatCurrentStat(tabs.rebirths.rebirths.Value) .. " | Gained: 0")
 tabs.rebirths.Pace = tabs.rebirths:AddLabel("Pace: -- / Hour | -- / Day | -- / Week")
 tabs.rebirths.AveragePace = tabs.rebirths:AddLabel("Average: -- / Hour | -- / Day | -- / Week")
 tabs.rebirths.Status.TextColor3 = Color3.fromRGB(255, 80, 80)
 
 tabs.rebirths.updateStats = function()
-    tabs.rebirths.RebirthStats.Text = "Rebirths: " .. formatNumber(tabs.rebirths.rebirths.Value)
+    tabs.rebirths.RebirthStats.Text = "Rebirths: " .. formatCurrentStat(tabs.rebirths.rebirths.Value)
         .. " | Gained: " .. formatNumber(tabs.rebirths.rebirths.Value - tabs.rebirths.startRebirths)
 end
 
@@ -543,8 +570,8 @@ tabs.strength.lastLoopAt = os.clock()
 tabs.strength.repIndex = 1
 tabs.strength.Status = tabs.strength:AddLabel("Status: Inactive")
 tabs.strength.Runtime = tabs.strength:AddLabel("Runtime: 0d 0h 0m 0s")
-tabs.strength.StrengthStats = tabs.strength:AddLabel("Strength: " .. formatNumber(tabs.strength.strength.Value) .. " | Gained: 0")
-tabs.strength.DurabilityStats = tabs.strength:AddLabel("Durability: " .. formatNumber(tabs.strength.durability.Value) .. " | Gained: 0")
+tabs.strength.StrengthStats = tabs.strength:AddLabel("Strength: " .. formatCurrentStat(tabs.strength.strength.Value) .. " | Gained: 0")
+tabs.strength.DurabilityStats = tabs.strength:AddLabel("Durability: " .. formatCurrentStat(tabs.strength.durability.Value) .. " | Gained: 0")
 tabs.strength.StrengthPace = tabs.strength:AddLabel("Str Pace: --/s | --/min | --/h | --/d")
 tabs.strength.DurabilityPace = tabs.strength:AddLabel("Dura Pace: --/s | --/min | --/h | --/d")
 tabs.strength.StrengthAverage = tabs.strength:AddLabel("Str Ø: --/s | --/min | --/h | --/d")
@@ -567,9 +594,9 @@ tabs.strength.updateRuntime = function()
 end
 
 tabs.strength.updateStats = function()
-    tabs.strength.StrengthStats.Text = "Strength: " .. formatNumber(tabs.strength.strength.Value)
+    tabs.strength.StrengthStats.Text = "Strength: " .. formatCurrentStat(tabs.strength.strength.Value)
         .. " | Gained: " .. formatNumber(tabs.strength.strength.Value - tabs.strength.startStrength)
-    tabs.strength.DurabilityStats.Text = "Durability: " .. formatNumber(tabs.strength.durability.Value)
+    tabs.strength.DurabilityStats.Text = "Durability: " .. formatCurrentStat(tabs.strength.durability.Value)
         .. " | Gained: " .. formatNumber(tabs.strength.durability.Value - tabs.strength.startDurability)
 end
 
@@ -807,8 +834,8 @@ tabs.strength2.pingControl = true
 tabs.strength2.currentPing = 0
 tabs.strength2.Status = tabs.strength2:AddLabel("Status: Inactive")
 tabs.strength2.Runtime = tabs.strength2:AddLabel("Runtime: 0d 0h 0m 0s")
-tabs.strength2.StrengthStats = tabs.strength2:AddLabel("Strength: " .. formatNumber(tabs.strength2.strength.Value) .. " | Gained: 0")
-tabs.strength2.DurabilityStats = tabs.strength2:AddLabel("Durability: " .. formatNumber(tabs.strength2.durability.Value) .. " | Gained: 0")
+tabs.strength2.StrengthStats = tabs.strength2:AddLabel("Strength: " .. formatCurrentStat(tabs.strength2.strength.Value) .. " | Gained: 0")
+tabs.strength2.DurabilityStats = tabs.strength2:AddLabel("Durability: " .. formatCurrentStat(tabs.strength2.durability.Value) .. " | Gained: 0")
 tabs.strength2.StrengthPace = tabs.strength2:AddLabel("Str Pace: --/s | --/min | --/h | --/d")
 tabs.strength2.DurabilityPace = tabs.strength2:AddLabel("Dura Pace: --/s | --/min | --/h | --/d")
 tabs.strength2.StrengthAverage = tabs.strength2:AddLabel("Str Ø: --/s | --/min | --/h | --/d")
@@ -831,9 +858,9 @@ tabs.strength2.updateRuntime = function()
 end
 
 tabs.strength2.updateStats = function()
-    tabs.strength2.StrengthStats.Text = "Strength: " .. formatNumber(tabs.strength2.strength.Value)
+    tabs.strength2.StrengthStats.Text = "Strength: " .. formatCurrentStat(tabs.strength2.strength.Value)
         .. " | Gained: " .. formatNumber(tabs.strength2.strength.Value - tabs.strength2.startStrength)
-    tabs.strength2.DurabilityStats.Text = "Durability: " .. formatNumber(tabs.strength2.durability.Value)
+    tabs.strength2.DurabilityStats.Text = "Durability: " .. formatCurrentStat(tabs.strength2.durability.Value)
         .. " | Gained: " .. formatNumber(tabs.strength2.durability.Value - tabs.strength2.startDurability)
 end
 
@@ -1236,6 +1263,14 @@ tabs.other.HidePopupsSwitch = tabs.other:AddSwitch("Hide Popups", function(state
 end)
 tabs.other.HidePopupsSwitch:Set(true)
 tabs.other.popupSwitchInitializing = false
+
+tabs.other.RedactStatsSwitch = tabs.other:AddSwitch("Redact Stats", function(state)
+    tabs.other.redactStats = state
+    tabs.rebirths.updateStats()
+    tabs.strength.updateStats()
+    tabs.strength2.updateStats()
+end)
+tabs.other.RedactStatsSwitch:Set(true)
 
 
 
