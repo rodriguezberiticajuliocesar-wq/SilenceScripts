@@ -1,6 +1,6 @@
 --[[
     Silence - Tap Simulator
-    by Henne @xyzhenrik_
+    by Henrik @xyzhenrik
 ]]
 
 local services = {
