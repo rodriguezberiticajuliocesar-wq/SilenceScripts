@@ -2,7 +2,7 @@
     Modified Elerium V2
 	EleriumV2 was made by github.com/memejames
 	Project url: https://github.com/memejames/elerium-v2-ui-library
-	modified by Henne @xyzhenrik_
+	modified by Henrik @xyzhenrik
 ]]
 
 local ui_options = {
