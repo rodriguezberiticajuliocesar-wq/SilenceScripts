@@ -267,10 +267,10 @@ function utils.deleteAds()
 end
 utils.deleteAds()
 
-utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/HonenxWhitedevs/HonenxWhiteScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
+utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
 
 utils.HonenxWhite = utils.library:AddWindow("HonenxWhite | Main - " .. utils.greeting(), {
-	main_color = Color3.fromRGB(138, 0, 0),
+	main_color = Color3.fromRGB(0, 120, 255),
 	min_size = Vector2.new(566, 750),
 	can_resize = true,
 })
@@ -1624,7 +1624,7 @@ tabs.killing:AddLabel("Kill Aura:")
 
 tabs.killing.KillAura = {
 	RingPart = nil,
-	RingColor = Color3.fromRGB(138, 0, 0),
+	RingColor = Color3.fromRGB(0, 120, 255),
 	RingTransparency = 0.6,
 	CenterCFrame = nil,
 	Frozen = false,
@@ -1646,8 +1646,8 @@ tabs.killing:AddTextBox("Range (1-140):", function(text)
 end, {clear = false})
 
 tabs.killing.RingColors = {
-	{Name = "HonenxWhite", Color = Color3.fromRGB(138, 0, 0)},
-	{Name = "Red", Color = Color3.fromRGB(255, 0, 0)},
+	{Name = "HonenxWhite", Color = Color3.fromRGB(0, 120, 255)},
+	{Name = "Red", Color = Color3.fromRGB(30, 150, 255)},
 	{Name = "Orange", Color = Color3.fromRGB(255, 128, 0)},
 	{Name = "Yellow", Color = Color3.fromRGB(255, 230, 0)},
 	{Name = "Lime", Color = Color3.fromRGB(128, 255, 0)},
