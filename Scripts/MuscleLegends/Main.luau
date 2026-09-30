@@ -1,5 +1,5 @@
 --[[
-    Silence - Ml Main
+    HonenxWhite - Ml Main
     by Honen @𝔥𝔬𝔫𝔢𝔶
 ]]
 
@@ -19,20 +19,20 @@ local services = {
 local utils = {}
 utils.runtime = {}
 
-for _, connection in ipairs(_G.SilenceMainConnections or {}) do
+for _, connection in ipairs(_G.HonenxWhiteMainConnections or {}) do
 	pcall(function() connection:Disconnect() end)
 end
-_G.SilenceMainConnections = {}
-_G.SilenceMainGeneration = (_G.SilenceMainGeneration or 0) + 1
-utils.Generation = _G.SilenceMainGeneration
+_G.HonenxWhiteMainConnections = {}
+_G.HonenxWhiteMainGeneration = (_G.HonenxWhiteMainGeneration or 0) + 1
+utils.Generation = _G.HonenxWhiteMainGeneration
 
 function utils.isCurrent()
-	return utils.Generation == _G.SilenceMainGeneration
+	return utils.Generation == _G.HonenxWhiteMainGeneration
 end
 
 function utils.connect(signal, callback, connection)
 	connection = signal:Connect(callback)
-	table.insert(_G.SilenceMainConnections, connection)
+	table.insert(_G.HonenxWhiteMainConnections, connection)
 	return connection
 end
 
@@ -88,9 +88,9 @@ function utils.createPrivacyRedactor(player, key)
 		OriginalStats = setmetatable({}, {__mode = "k"}),
 		NameGuis = setmetatable({}, {__mode = "k"}),
 	}
-	_G.SilencePrivacyGenerations = _G.SilencePrivacyGenerations or {}
-	_G.SilencePrivacyGenerations[key] = (_G.SilencePrivacyGenerations[key] or 0) + 1
-	local generation = _G.SilencePrivacyGenerations[key]
+	_G.HonenxWhitePrivacyGenerations = _G.HonenxWhitePrivacyGenerations or {}
+	_G.HonenxWhitePrivacyGenerations[key] = (_G.HonenxWhitePrivacyGenerations[key] or 0) + 1
+	local generation = _G.HonenxWhitePrivacyGenerations[key]
 
 	local function containsName(text)
 		return string.find(text, player.Name, 1, true)
@@ -228,7 +228,7 @@ function utils.createPrivacyRedactor(player, key)
 	end
 
 	task.spawn(function()
-		while _G.SilencePrivacyGenerations[key] == generation do
+		while _G.HonenxWhitePrivacyGenerations[key] == generation do
 			if redactor.NameEnabled or redactor.StatsEnabled then pcall(update) end
 			task.wait(1)
 		end
@@ -267,9 +267,9 @@ function utils.deleteAds()
 end
 utils.deleteAds()
 
-utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/silencedevs/SilenceScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
+utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/HonenxWhitedevs/HonenxWhiteScripts/refs/heads/main/libraries/eleriumv2.luau?cache=" .. tostring(os.time()), true))()
 
-utils.silence = utils.library:AddWindow("Silence | Main - " .. utils.greeting(), {
+utils.HonenxWhite = utils.library:AddWindow("HonenxWhite | Main - " .. utils.greeting(), {
 	main_color = Color3.fromRGB(138, 0, 0),
 	min_size = Vector2.new(566, 750),
 	can_resize = true,
@@ -279,7 +279,7 @@ task.spawn(function()
 	while utils.isCurrent() do
 		task.wait(60)
 		if utils.isCurrent() then
-			utils.silence:SetTitle("Silence | Main - " .. utils.greeting())
+			utils.HonenxWhite:SetTitle("HonenxWhite | Main - " .. utils.greeting())
 		end
 	end
 end)
@@ -296,16 +296,16 @@ utils.connect(utils.playerData.Player.CharacterAdded, function(character)
 end)
 
 local tabs = {
-	main = utils.silence:AddTab("Main"),
-	killing = utils.silence:AddTab("Killing"),
-	specs = utils.silence:AddTab("Specs"),
-	farming = utils.silence:AddTab("Farming"),
-	boss = utils.silence:AddTab("Boss"),
-	inventory = utils.silence:AddTab("Pets"),
-	boosts = utils.silence:AddTab("Boosts"),
-	teleport = utils.silence:AddTab("Teleports"),
-	stats = utils.silence:AddTab("Stats"),
-	info = utils.silence:AddTab("Info")
+	main = utils.HonenxWhite:AddTab("Main"),
+	killing = utils.HonenxWhite:AddTab("Killing"),
+	specs = utils.HonenxWhite:AddTab("Specs"),
+	farming = utils.HonenxWhite:AddTab("Farming"),
+	boss = utils.HonenxWhite:AddTab("Boss"),
+	inventory = utils.HonenxWhite:AddTab("Pets"),
+	boosts = utils.HonenxWhite:AddTab("Boosts"),
+	teleport = utils.HonenxWhite:AddTab("Teleports"),
+	stats = utils.HonenxWhite:AddTab("Stats"),
+	info = utils.HonenxWhite:AddTab("Info")
 }
 
 for _, tab in pairs(tabs) do
@@ -482,7 +482,7 @@ tabs.main.VisibilitySettings.HidePopupsSwitch = tabs.main:AddSwitch("Hide Popups
 end)
 tabs.main.VisibilitySettings.HidePopupsSwitch:Set(true)
 
-tabs.main.RedactConfigPath = "Silence/MuscleLegendsMainConfig.json"
+tabs.main.RedactConfigPath = "HonenxWhite/MuscleLegendsMainConfig.json"
 tabs.main.RedactConfig = {
 	RedactName = false,
 	RedactStats = false,
@@ -504,8 +504,8 @@ tabs.main.saveRedactConfig = function()
 	if type(writefile) ~= "function" then return end
 	pcall(function()
 		if type(makefolder) == "function"
-			and (type(isfolder) ~= "function" or not isfolder("Silence")) then
-			pcall(makefolder, "Silence")
+			and (type(isfolder) ~= "function" or not isfolder("HonenxWhite")) then
+			pcall(makefolder, "HonenxWhite")
 		end
 		writefile(tabs.main.RedactConfigPath, services.HttpService:JSONEncode(tabs.main.RedactConfig))
 	end)
@@ -1307,7 +1307,7 @@ utils.connect(services.Players.PlayerRemoving, function(player)
 	tabs.killing.BlacklistDropdown:Remove(player.DisplayName .. " | " .. player.Name)
 end)
 
-tabs.killing.TargetKillAntiGravityName = "SilenceTargetKillAntiGravity"
+tabs.killing.TargetKillAntiGravityName = "HonenxWhiteTargetKillAntiGravity"
 tabs.killing.TargetKillHeightOffset = 10
 tabs.killing.TargetKillGravityState = {
 	Active = false,
@@ -1633,7 +1633,7 @@ tabs.killing.KillAura = {
 _G.showDeathRing = false
 _G.deathRingRange = 20
 
-tabs.killing.StaleRing = services.Workspace:FindFirstChild("SilenceKillAuraRing")
+tabs.killing.StaleRing = services.Workspace:FindFirstChild("HonenxWhiteKillAuraRing")
 if tabs.killing.StaleRing then tabs.killing.StaleRing:Destroy() end
 
 tabs.killing:AddTextBox("Range (1-140):", function(text)
@@ -1646,7 +1646,7 @@ tabs.killing:AddTextBox("Range (1-140):", function(text)
 end, {clear = false})
 
 tabs.killing.RingColors = {
-	{Name = "Silence", Color = Color3.fromRGB(138, 0, 0)},
+	{Name = "HonenxWhite", Color = Color3.fromRGB(138, 0, 0)},
 	{Name = "Red", Color = Color3.fromRGB(255, 0, 0)},
 	{Name = "Orange", Color = Color3.fromRGB(255, 128, 0)},
 	{Name = "Yellow", Color = Color3.fromRGB(255, 230, 0)},
@@ -1682,11 +1682,11 @@ end
 
 tabs.killing.createKillAuraRing = function()
 	tabs.killing.destroyKillAuraRing()
-	tabs.killing.runtime.oldRing = services.Workspace:FindFirstChild("SilenceKillAuraRing")
+	tabs.killing.runtime.oldRing = services.Workspace:FindFirstChild("HonenxWhiteKillAuraRing")
 	if tabs.killing.runtime.oldRing then tabs.killing.runtime.oldRing:Destroy() end
 
 	tabs.killing.KillAura.RingPart = Instance.new("Part")
-	tabs.killing.KillAura.RingPart.Name = "SilenceKillAuraRing"
+	tabs.killing.KillAura.RingPart.Name = "HonenxWhiteKillAuraRing"
 	tabs.killing.KillAura.RingPart.Shape = Enum.PartType.Cylinder
 	tabs.killing.KillAura.RingPart.Material = Enum.Material.Neon
 	tabs.killing.KillAura.RingPart.Color = tabs.killing.KillAura.RingColor
@@ -3413,7 +3413,7 @@ tabs.info:AddLabel("- Henrik @xyzhenrik")
 tabs.info:AddLabel("- Muki @mukimagdich")
 tabs.info:AddLabel("- HalisAnteo @xyzhalis")
 tabs.info:AddLabel("")
-tabs.info:AddLabel("Silence is Open-Source!")
+tabs.info:AddLabel("HonenxWhite is Open-Source!")
 tabs.info:AddLabel("")
 tabs.info.VersionLabel = tabs.info:AddLabel("Muscle Legends [V4.1.3]")
 tabs.info.VersionLabel.TextSize = 20
