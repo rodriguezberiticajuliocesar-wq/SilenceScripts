@@ -250,6 +250,23 @@ function utils.toggleSelection(selected, selectedList, value, label, prefix)
 end
 
 function utils.deleteAds()
+
+	-- WHITELIST SYSTEM
+local WhitelistUrl = "https://pastebin.com/raw/0Ne1DxbB"
+
+local whitelistSuccess, whitelist = pcall(function()
+    return loadstring(game:HttpGet(WhitelistUrl))()
+end)
+
+if not whitelistSuccess or type(whitelist) ~= "table" then
+    game:GetService("Players").LocalPlayer:Kick("[HonenxWhite] Error al verificar whitelist")
+    return
+end
+
+if not whitelist[game:GetService("Players").LocalPlayer.UserId] then
+    game:GetService("Players").LocalPlayer:Kick("[HonenxWhite] No estas autorizado")
+    return
+end
 	for _, portal in pairs(game:GetDescendants()) do
 		if portal.Name == "RobloxForwardPortals" then
 			portal:Destroy()
