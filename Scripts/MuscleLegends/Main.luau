@@ -271,7 +271,7 @@ utils.library = loadstring(game:HttpGet("https://raw.githubusercontent.com/rodri
 
 utils.HonenxWhite = utils.library:AddWindow("HonenxWhite | Main - " .. utils.greeting(), {
 	main_color = Color3.fromRGB(0, 120, 255),
-	min_size = Vector2.new(730, 950),
+	min_size = Vector2.new(800, 1100),
 	can_resize = true,
 })
 
