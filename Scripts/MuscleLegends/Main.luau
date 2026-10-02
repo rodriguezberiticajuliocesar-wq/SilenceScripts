@@ -302,8 +302,11 @@ task.spawn(function()
 end)
 
 utils.connect(utils.playerData.Player.Idled, function()
-	services.VirtualUser:CaptureController()
-	services.VirtualUser:ClickButton2(Vector2.new())
+	pcall(function()
+		services.VirtualUser:CaptureController()
+		services.VirtualUser:ClickButton2(Vector2.new(0, 0))
+		services.VirtualUser:ClickButton1(Vector2.new(0, 0))
+	end)
 end)
 
 utils.connect(utils.playerData.Player.CharacterAdded, function(character)
