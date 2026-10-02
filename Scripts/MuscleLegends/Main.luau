@@ -354,7 +354,7 @@ task.spawn(function()
 		if tabs.main.Settings.Size.Enabled and utils.playerData.Character and utils.playerData.Humanoid then
 			utils.remotes.ChangeSpeedSize:InvokeServer("changeSize", tabs.main.Settings.Size.Value)
 		end
-		task.wait(0.01)
+		task.wait(0.15)
 	end
 end)
 
@@ -374,7 +374,7 @@ task.spawn(function()
 		if tabs.main.Settings.Speed.Enabled and utils.playerData.Character and utils.playerData.Humanoid then
 			utils.remotes.ChangeSpeedSize:InvokeServer("changeSpeed", tabs.main.Settings.Speed.Value)
 		end
-		task.wait(0.01)
+		task.wait(0.15)
 	end
 end)
 
@@ -396,7 +396,7 @@ if utils.playerData.Camera then
 			if tabs.main.Settings.FOV.Enabled and utils.playerData.Camera then
 				utils.playerData.Camera.FieldOfView = tabs.main.Settings.FOV.Value
 			end
-			task.wait(0.01)
+			task.wait(0.15)
 		end
 	end)
 end
@@ -3454,22 +3454,18 @@ tabs.info.VersionLabel.Font = Enum.Font.Arcade
 
 
 
--- ⚡ FAST REP ADAPTATIVO (Súper rápido sin lag) - by cyanam1
-tabs.fast:AddLabel("⚡ Fast Rep:")
+-- FAST REP - by cyanam1
+tabs.fast:AddLabel("Fast Rep:")
+
 tabs.fast.FastRepData = {
     Running = false,
     WorkerActive = false,
-    StartStrength = 0,
-    StartDurability = 0,
-    SendRate = 400,
-    MaxSendRate = 800,
-    MinSendRate = 100,
-    MaxBurst = 32,
-    SendTokens = 0,
-    LastLoopAt = os.clock(),
+    SendRate = 800,
+    MaxSendRate = 1500,
+    MaxBurst = 64,
     CurrentPing = 0,
     LastPingCheck = 0,
-    PingControl = true
+    PingControl = false
 }
 
 local strengthStat = utils.playerData.Player:WaitForChild("leaderstats"):WaitForChild("Strength")
@@ -3480,104 +3476,85 @@ tabs.fast.FastRepStatus = tabs.fast:AddLabel("Status: Inactive")
 tabs.fast.FastRepStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
 
 tabs.fast.FastRepWorkerLoop = function()
-    tabs.fast.FastRepData.LastLoopAt = os.clock()
+    tabs.fast.FastRepData.WorkerActive = true
+    
     while utils.isCurrent() and tabs.fast.FastRepData.Running do
-        local now = os.clock()
-        local elapsed = math.min(0.1, now - tabs.fast.FastRepData.LastLoopAt)
-        tabs.fast.FastRepData.LastLoopAt = now
-        
+        -- Actualizar ping cada 0.5s
         if tick() - tabs.fast.FastRepData.LastPingCheck > 0.5 then
-            tabs.fast.FastRepData.CurrentPing = networkStats:GetValue()
+            pcall(function()
+                tabs.fast.FastRepData.CurrentPing = networkStats:GetValue()
+            end)
             tabs.fast.FastRepData.LastPingCheck = tick()
             
             if tabs.fast.FastRepData.PingControl then
                 local ping = tabs.fast.FastRepData.CurrentPing
-                local targetSpeed
                 if ping < 80 then
-                    targetSpeed = 800
+                    tabs.fast.FastRepData.SendRate = 1000
                 elseif ping < 150 then
-                    targetSpeed = 600
+                    tabs.fast.FastRepData.SendRate = 700
                 elseif ping < 250 then
-                    targetSpeed = 400
+                    tabs.fast.FastRepData.SendRate = 450
                 elseif ping < 400 then
-                    targetSpeed = 200
+                    tabs.fast.FastRepData.SendRate = 250
                 else
-                    targetSpeed = 100
+                    tabs.fast.FastRepData.SendRate = 120
                 end
-                tabs.fast.FastRepData.SendRate = targetSpeed
             end
         end
         
-        tabs.fast.FastRepData.SendTokens = math.min(
-            tabs.fast.FastRepData.MaxBurst,
-            tabs.fast.FastRepData.SendTokens + tabs.fast.FastRepData.SendRate * elapsed
-        )
-        
-        local burstLimit = math.max(1, math.min(
-            tabs.fast.FastRepData.MaxBurst,
-            math.ceil(tabs.fast.FastRepData.SendRate * 0.05)
-        ))
-        
-        local sendCount = math.min(math.floor(tabs.fast.FastRepData.SendTokens), burstLimit)
-        
-        for i = 1, sendCount do
-            utils.remotes.MuscleEvent:FireServer("rep")
+        -- Enviar reps (un lote por frame)
+        local repsToSend = math.floor(tabs.fast.FastRepData.SendRate / 60)
+        if repsToSend < 1 then repsToSend = 1 end
+        if repsToSend > 12 then
+            repsToSend = 12
         end
         
-        tabs.fast.FastRepData.SendTokens = tabs.fast.FastRepData.SendTokens - sendCount
+        for i = 1, repsToSend do
+            pcall(function()
+                utils.remotes.MuscleEvent:FireServer("rep")
+            end)
+        end
         
-        tabs.fast.FastRepStatus.Text = "Status: ⚡ " .. math.floor(tabs.fast.FastRepData.SendRate) 
+        -- Actualizar status
+        tabs.fast.FastRepStatus.Text = "Status: " .. tabs.fast.FastRepData.SendRate 
             .. " reps/s | " .. math.floor(tabs.fast.FastRepData.CurrentPing) .. " ms"
         tabs.fast.FastRepStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
         
         services.RunService.Heartbeat:Wait()
     end
+    
     tabs.fast.FastRepData.WorkerActive = false
 end
 
-tabs.fast:AddTextBox("Max reps/s: 800", function(text)
+tabs.fast:AddTextBox("Max reps/s: 1200", function(text)
     local num = tonumber(text)
     if num and num > 0 then
-        tabs.fast.FastRepData.MaxSendRate = math.clamp(num, 100, 2000)
+        tabs.fast.FastRepData.MaxSendRate = math.clamp(num, 100, 1200)
         tabs.fast.FastRepData.SendRate = math.min(tabs.fast.FastRepData.SendRate, tabs.fast.FastRepData.MaxSendRate)
     end
 end, {clear = false})
 
 tabs.fast:AddSwitch("Ping Control (Auto Speed)", function(state)
     tabs.fast.FastRepData.PingControl = state
-end):Set(false)
+end):Set(true)
 
-
-tabs.fast.FastRepToggle = tabs.fast:AddSwitch("Fast Rep ⚡ (No Lag)", function(state)
+tabs.fast.FastRepToggle = tabs.fast:AddSwitch("Fast Rep (No Lag)", function(state)
     tabs.fast.FastRepData.Running = state
     if state then
-        tabs.fast.FastRepData.StartStrength = strengthStat.Value
-        tabs.fast.FastRepData.StartDurability = durabilityStat.Value
-        tabs.fast.FastRepData.SendRate = 400
-        tabs.fast.FastRepData.SendTokens = 0
-        tabs.fast.FastRepData.LastLoopAt = os.clock()
+        tabs.fast.FastRepData.SendRate = 800
         tabs.fast.FastRepData.LastPingCheck = tick()
-        
-        if not tabs.fast.FastRepData.WorkerActive then
-            tabs.fast.FastRepData.WorkerActive = true
-            task.spawn(tabs.fast.FastRepWorkerLoop)
-        end
+        tabs.fast.FastRepData.WorkerActive = false
+        tabs.fast.FastRepStatus.Text = "Status: Activando..."
+        tabs.fast.FastRepStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
+        task.wait(0.05)
+        task.spawn(tabs.fast.FastRepWorkerLoop)
     else
         tabs.fast.FastRepStatus.Text = "Status: Inactive"
         tabs.fast.FastRepStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
     end
 end)
 
-tabs.fast:AddLabel("⚡ 400-800 reps/s | Ping auto-ajustado")
-
-
-
-
-
-
-
-
-
+tabs.fast:AddLabel("400-1500 reps/s | Ping auto-ajustado")
 
 -- 🔄 FAST REBIRTH - by cyanam1
 tabs.fast:AddLabel("🔄 Fast Rebirth:")
@@ -3744,55 +3721,21 @@ end)
 tabs.fast:AddLabel("🔄 Auto farmea + rebirth automático")
 
 
--- 🔄 FAST REBIRTH V2 (Auto: Velocidad → Farm → Packs → Rebirth → Golems)
+-- FAST REBIRTH V2 - 2 Apartados (Ultra Titans + Chaos Overlords) - RÁPIDO
 tabs.fast:AddLabel("")
-tabs.fast:AddLabel("🔄 Fast Rebirth V2 (Automático):")
+tabs.fast:AddLabel("Fast Rebirth V2:")
+tabs.fast:AddLabel("")
 
-tabs.fast.FastRebirthV2Data = {
-    Running = false,
-    WorkerActive = false,
-    Rebirths = utils.playerData.Player.leaderstats:WaitForChild("Rebirths"),
-    Strength = utils.playerData.Player.leaderstats:WaitForChild("Strength"),
-    TargetRebirths = 0,
-    RebirthsGained = 0,
-    LastRebirthTime = 0,
-    TotalRebirths = 0,
-    UseGolems = true,
-    UsePackPets = true,
-    -- PACKS de x2 Rebirths (SOLO estos)
-    PackPets = {
-        "Titanium Hydra",
-        "Tribal Overlord"
-    },
-    -- Mascotas de VELOCIDAD de rep
-    RepPets = {
-        "Omega Overlord",
-        "Swift Samurai"
-    },
-    -- Golems con +10% Rep Speed (de jefes)
-    GolemPets = {
-        "Mythic Boss Pet",
-        "Legendary Boss Pet",
-        "Epic Boss Pet",
-        "Rainbow Boss Pet"
-    }
-}
-
-tabs.fast.FastRebirthV2Status = tabs.fast:AddLabel("Status: Inactive")
-tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(255, 80, 80)
-
-tabs.fast.FastRebirthV2Stats = tabs.fast:AddLabel("Rebirths: 0 | Gained: 0")
-tabs.fast.FastRebirthV2Speed = tabs.fast:AddLabel("Speed: --/min")
-
-tabs.fast.equipPetsByNameV2 = function(petNames, maxPets)
-    maxPets = maxPets or 12
-    local uniquePets = utils.playerData.Player.petsFolder.Unique
-    local equipped = 0
-    local equippedSet = {}
-
-    -- 1. Desequipar TODO primero
-    for _, folder in pairs(utils.playerData.Player.petsFolder:GetChildren()) do
-        if folder:IsA("Folder") and folder.Name ~= "Unique" then
+-- =========================================
+-- FUNCIONES AUXILIARES RÁPIDAS
+-- =========================================
+tabs.fast.desequipAll = function()
+    local player = utils.playerData.Player
+    local petsFolder = player.petsFolder
+    
+    -- Desequipar TODAS las mascotas en TODAS las carpetas
+    for _, folder in pairs(petsFolder:GetChildren()) do
+        if folder:IsA("Folder") then
             for _, pet in pairs(folder:GetChildren()) do
                 pcall(function()
                     services.ReplicatedStorage.rEvents.equipPetEvent:FireServer("unequipPet", pet)
@@ -3800,177 +3743,313 @@ tabs.fast.equipPetsByNameV2 = function(petNames, maxPets)
             end
         end
     end
-    task.wait(0.2)
-
-    -- 2. Función interna para equipar UN pet
-    local function tryEquip(pet)
-        if equipped >= maxPets then return false end
-        if equippedSet[pet] then return false end
-        pcall(function()
-            services.ReplicatedStorage.rEvents.equipPetEvent:FireServer("equipPet", pet)
-        end)
-        equippedSet[pet] = true
-        equipped = equipped + 1
-        task.wait(0.05)
-        return true
-    end
-
-    -- 3. Equipar SOLO por nombre exacto (todas las copias que haya)
-    for _, petName in ipairs(petNames) do
-        if equipped >= maxPets then break end
-        for _, pet in pairs(uniquePets:GetChildren()) do
-            if equipped >= maxPets then break end
-            if pet.Name == petName then
-                tryEquip(pet)
+    
+    -- Buscar en el Character también
+    if player.Character then
+        for _, obj in pairs(player.Character:GetChildren()) do
+            if obj:IsA("StringValue") or obj:IsA("ObjectValue") then
+                pcall(function()
+                    services.ReplicatedStorage.rEvents.equipPetEvent:FireServer("unequipPet", obj)
+                end)
             end
         end
     end
+    
+    task.wait(0.3)  -- ⚡ Antes 2s
+end
 
+tabs.fast.equipPets = function(petNames)
+    local petsFolder = utils.playerData.Player.petsFolder
+    local uniquePets = petsFolder.Unique
+    
+    -- Desequipar
+    tabs.fast.desequipAll()
+    task.wait(0.2)  -- ⚡ Antes 1s
+    
+    -- Equipar
+    local equipped = 0
+    for _, petName in ipairs(petNames) do
+        for _, pet in pairs(uniquePets:GetChildren()) do
+            if pet.Name == petName then
+                pcall(function()
+                    services.ReplicatedStorage.rEvents.equipPetEvent:FireServer("equipPet", pet)
+                end)
+                equipped = equipped + 1
+                task.wait(0.05)  -- ⚡ Antes 0.2s
+            end
+        end
+    end
+    
+    task.wait(0.3)  -- ⚡ Antes 2s
     return equipped
 end
 
-tabs.fast.FastRebirthV2Worker = function()
-    local startRebirths = tabs.fast.FastRebirthV2Data.Rebirths.Value
-    tabs.fast.FastRebirthV2Data.TotalRebirths = 0
-    local lastCheck = tick()
-    local lastRebirthCount = startRebirths
-    
-    while utils.isCurrent() and tabs.fast.FastRebirthV2Data.Running do
-        if tabs.fast.FastRebirthV2Data.TargetRebirths > 0 
-            and tabs.fast.FastRebirthV2Data.Rebirths.Value >= tabs.fast.FastRebirthV2Data.TargetRebirths then
-            tabs.fast.FastRebirthV2Status.Text = "Status: ✅ Target alcanzado!"
-            tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(80, 255, 120)
-            tabs.fast.FastRebirthV2Data.Running = false
+-- =========================================
+-- APARTADO 1: ULTRA TITANS PACK
+-- =========================================
+tabs.fast:AddLabel("Ultra Titans Pack:")
+
+tabs.fast.UltraData = {
+    Running = false,
+    WorkerActive = false,
+    Rebirths = utils.playerData.Player.leaderstats:WaitForChild("Rebirths"),
+    Strength = utils.playerData.Player.leaderstats:WaitForChild("Strength"),
+    TargetRebirths = 0,
+    TotalRebirths = 0,
+    RepPets = {"Omega Overlord"},
+    RebirthPets = {"Titanium Hydra"}
+}
+
+tabs.fast.UltraStatus = tabs.fast:AddLabel("Status: Inactive")
+tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+
+tabs.fast.UltraStats = tabs.fast:AddLabel("Rebirths: 0 | Gained: 0")
+
+tabs.fast.UltraWorker = function()
+    local startRebirths = tabs.fast.UltraData.Rebirths.Value
+
+    while utils.isCurrent() and tabs.fast.UltraData.Running do
+        if tabs.fast.UltraData.TargetRebirths > 0
+            and tabs.fast.UltraData.Rebirths.Value >= tabs.fast.UltraData.TargetRebirths then
+            tabs.fast.UltraStatus.Text = "Status: Target alcanzado"
+            tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+            tabs.fast.UltraData.Running = false
             break
         end
+
+        -- PASO 1: EQUIPAR REP (rápido)
+        tabs.fast.UltraStatus.Text = "Status: Equipando Rep..."
+        tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
         
-        tabs.fast.FastRebirthV2Status.Text = "Status: ⚡ Equipando velocidad..."
-        tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(255, 200, 80)
-        
+        local equippedRep = 0
         pcall(function()
-            tabs.fast.equipPetsByNameV2(tabs.fast.FastRebirthV2Data.RepPets, 12)
+            equippedRep = tabs.fast.equipPets(tabs.fast.UltraData.RepPets)
         end)
         
-        task.wait(0.3)
-        
-        local currentRebirths = tabs.fast.FastRebirthV2Data.Rebirths.Value
+        tabs.fast.UltraStatus.Text = "Status: " .. equippedRep .. " Rep equipados"
+        -- ⚡ SIN task.wait extra aquí, ya espera dentro de equipPets
+
+        -- PASO 2: FARMEAR
+        local currentRebirths = tabs.fast.UltraData.Rebirths.Value
         local targetStrength = 5000 + currentRebirths * 2550
         local repsPerBurst = utils.playerData.Player.MembershipType == Enum.MembershipType.Premium and 6 or 12
-        
-        tabs.fast.FastRebirthV2Status.Text = "Status: 💪 Farmeando... " 
-            .. utils.formatNumber(tabs.fast.FastRebirthV2Data.Strength.Value) 
-            .. " / " .. utils.formatNumber(targetStrength)
-        tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(80, 255, 120)
-        
-        while utils.isCurrent() and tabs.fast.FastRebirthV2Data.Running 
-            and tabs.fast.FastRebirthV2Data.Strength.Value < targetStrength do
-            
-            for i = 1, repsPerBurst do
-                pcall(function()
+
+        tabs.fast.UltraStatus.Text = "Status: Farmeando..."
+        tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+
+        while utils.isCurrent() and tabs.fast.UltraData.Running
+            and tabs.fast.UltraData.Strength.Value < targetStrength do
+            pcall(function()
+                for i = 1, repsPerBurst do
                     utils.remotes.MuscleEvent:FireServer("rep")
-                end)
-            end
-            task.wait(0.02)
-            
-            tabs.fast.FastRebirthV2Stats.Text = "Rebirths: " 
-                .. utils.formatWithCommas(tabs.fast.FastRebirthV2Data.Rebirths.Value) 
-                .. " | Gained: " 
-                .. utils.formatWithCommas(tabs.fast.FastRebirthV2Data.Rebirths.Value - startRebirths)
+                end
+            end)
+            task.wait(0.05)
+            tabs.fast.UltraStats.Text = "Rebirths: "
+                .. utils.formatWithCommas(tabs.fast.UltraData.Rebirths.Value)
+                .. " | Gained: "
+                .. utils.formatWithCommas(tabs.fast.UltraData.Rebirths.Value - startRebirths)
         end
-        
-        if utils.isCurrent() and tabs.fast.FastRebirthV2Data.Running 
-            and tabs.fast.FastRebirthV2Data.Strength.Value >= targetStrength then
+
+        -- PASO 3: EQUIPAR REBIRTH PETS (rápido)
+        if utils.isCurrent() and tabs.fast.UltraData.Running
+            and tabs.fast.UltraData.Strength.Value >= targetStrength then
+
+            tabs.fast.UltraStatus.Text = "Status: Equipando Hydra..."
+            tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 150, 255)
             
-            if tabs.fast.FastRebirthV2Data.UsePackPets then
-                tabs.fast.FastRebirthV2Status.Text = "Status: 🎁 Equipando packs..."
-                tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(255, 150, 255)
-                
-                pcall(function()
-                    tabs.fast.equipPetsByNameV2(tabs.fast.FastRebirthV2Data.PackPets, 12)
-                end)
-                
-                task.wait(0.5)
-            end
+            local equippedReb = 0
+            pcall(function()
+                equippedReb = tabs.fast.equipPets(tabs.fast.UltraData.RebirthPets)
+            end)
             
-            tabs.fast.FastRebirthV2Status.Text = "Status: 🔄 Haciendo rebirth..."
-            tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(255, 200, 80)
-            
-            local rebirthValueBefore = tabs.fast.FastRebirthV2Data.Rebirths.Value
+            tabs.fast.UltraStatus.Text = "Status: " .. equippedReb .. " Hydra equipadas"
+            task.wait(0.5)  -- ⚡ Antes 3s
+
+            -- PASO 4: REBIRTH
+            tabs.fast.UltraStatus.Text = "Status: Haciendo Rebirth..."
+            tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
+
+            local rebirthBefore = tabs.fast.UltraData.Rebirths.Value
             local attempts = 0
-            
+
             repeat
                 pcall(function()
                     services.ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
                 end)
                 task.wait(0.05)
                 attempts = attempts + 1
-            until not tabs.fast.FastRebirthV2Data.Running 
-                or tabs.fast.FastRebirthV2Data.Rebirths.Value > rebirthValueBefore 
+            until not tabs.fast.UltraData.Running
+                or tabs.fast.UltraData.Rebirths.Value > rebirthBefore
                 or attempts >= 50
-            
-            if tabs.fast.FastRebirthV2Data.Rebirths.Value > rebirthValueBefore then
-                tabs.fast.FastRebirthV2Data.TotalRebirths = tabs.fast.FastRebirthV2Data.TotalRebirths + 
-                    (tabs.fast.FastRebirthV2Data.Rebirths.Value - rebirthValueBefore)
-                tabs.fast.FastRebirthV2Data.LastRebirthTime = tick()
+
+            if tabs.fast.UltraData.Rebirths.Value > rebirthBefore then
+                tabs.fast.UltraData.TotalRebirths = tabs.fast.UltraData.TotalRebirths +
+                    (tabs.fast.UltraData.Rebirths.Value - rebirthBefore)
             end
             
-            if tabs.fast.FastRebirthV2Data.UseGolems then
-                tabs.fast.FastRebirthV2Status.Text = "Status: 🐾 Re-equipando golems..."
-                tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(150, 200, 255)
-                
-                task.wait(0.5)
-                
-                pcall(function()
-                    tabs.fast.equipPetsByNameV2(tabs.fast.FastRebirthV2Data.GolemPets, 12)
-                end)
-            end
+            task.wait(0.5)  -- ⚡ Antes 3s
         end
-        
-        if tick() - lastCheck >= 1 then
-            local currentCount = tabs.fast.FastRebirthV2Data.Rebirths.Value
-            local gained = currentCount - lastRebirthCount
-            tabs.fast.FastRebirthV2Speed.Text = "Speed: " .. gained .. " rebirths/s"
-            lastRebirthCount = currentCount
-            lastCheck = tick()
-        end
-        
-        task.wait(0.3)
+        task.wait(0.1)  -- ⚡ Antes 1s
     end
-    
-    tabs.fast.FastRebirthV2Data.WorkerActive = false
+    tabs.fast.UltraData.WorkerActive = false
 end
 
-tabs.fast:AddTextBox("V2 - Target rebirths (0 = infinito):", function(text)
+tabs.fast:AddTextBox("Ultra - Target rebirths (0 = inf):", function(text)
     local num = tonumber(text)
     if num and num >= 0 then
-        tabs.fast.FastRebirthV2Data.TargetRebirths = math.floor(num)
+        tabs.fast.UltraData.TargetRebirths = math.floor(num)
     end
 end, {clear = false})
 
-tabs.fast:AddSwitch("V2 - Usar Golems después del rebirth", function(state)
-    tabs.fast.FastRebirthV2Data.UseGolems = state
-end):Set(false)
-
-
-tabs.fast:AddSwitch("V2 - Usar Packs (x2 Rebirths)", function(state)
-    tabs.fast.FastRebirthV2Data.UsePackPets = state
-end):Set(false)
-
-
-tabs.fast.FastRebirthV2Toggle = tabs.fast:AddSwitch("Fast Rebirth V2 🔄 (Auto)", function(state)
-    tabs.fast.FastRebirthV2Data.Running = state
+tabs.fast.UltraToggle = tabs.fast:AddSwitch("Fast Rebirth Ultra Titans", function(state)
+    tabs.fast.UltraData.Running = state
     if state then
-        tabs.fast.FastRebirthV2Status.Text = "Status: 🔄 Iniciando V2..."
-        tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(80, 255, 120)
-        
-        if not tabs.fast.FastRebirthV2Data.WorkerActive then
-            tabs.fast.FastRebirthV2Data.WorkerActive = true
-            task.spawn(tabs.fast.FastRebirthV2Worker)
+        tabs.fast.UltraStatus.Text = "Status: Iniciando Ultra..."
+        tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+        if not tabs.fast.UltraData.WorkerActive then
+            tabs.fast.UltraData.WorkerActive = true
+            task.spawn(tabs.fast.UltraWorker)
         end
     else
-        tabs.fast.FastRebirthV2Status.Text = "Status: Inactive"
-        tabs.fast.FastRebirthV2Status.TextColor3 = Color3.fromRGB(255, 80, 80)
+        tabs.fast.UltraStatus.Text = "Status: Inactive"
+        tabs.fast.UltraStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
     end
 end)
 
-tabs.fast:AddLabel("🔄 V2: Velocidad → Farm → Packs → Rebirth → Golems")
+tabs.fast:AddLabel("Omega Overlord > Farm > Titanium Hydra > Rebirth")
+
+-- =========================================
+-- APARTADO 2: CHAOS OVERLORDS PACK
+-- =========================================
+tabs.fast:AddLabel("")
+tabs.fast:AddLabel("Chaos Overlords Pack:")
+
+tabs.fast.ChaosData = {
+    Running = false,
+    WorkerActive = false,
+    Rebirths = utils.playerData.Player.leaderstats:WaitForChild("Rebirths"),
+    Strength = utils.playerData.Player.leaderstats:WaitForChild("Strength"),
+    TargetRebirths = 0,
+    TotalRebirths = 0,
+    RepPets = {"Swift Samurai"},
+    RebirthPets = {"Tribal Overlord"}
+}
+
+tabs.fast.ChaosStatus = tabs.fast:AddLabel("Status: Inactive")
+tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+
+tabs.fast.ChaosStats = tabs.fast:AddLabel("Rebirths: 0 | Gained: 0")
+
+tabs.fast.ChaosWorker = function()
+    local startRebirths = tabs.fast.ChaosData.Rebirths.Value
+
+    while utils.isCurrent() and tabs.fast.ChaosData.Running do
+        if tabs.fast.ChaosData.TargetRebirths > 0
+            and tabs.fast.ChaosData.Rebirths.Value >= tabs.fast.ChaosData.TargetRebirths then
+            tabs.fast.ChaosStatus.Text = "Status: Target alcanzado"
+            tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+            tabs.fast.ChaosData.Running = false
+            break
+        end
+
+        -- PASO 1: EQUIPAR REP (rápido)
+        tabs.fast.ChaosStatus.Text = "Status: Equipando Rep..."
+        tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
+        
+        local equippedRep = 0
+        pcall(function()
+            equippedRep = tabs.fast.equipPets(tabs.fast.ChaosData.RepPets)
+        end)
+        
+        tabs.fast.ChaosStatus.Text = "Status: " .. equippedRep .. " Rep equipados"
+
+        -- PASO 2: FARMEAR
+        local currentRebirths = tabs.fast.ChaosData.Rebirths.Value
+        local targetStrength = 5000 + currentRebirths * 2550
+        local repsPerBurst = utils.playerData.Player.MembershipType == Enum.MembershipType.Premium and 6 or 12
+
+        tabs.fast.ChaosStatus.Text = "Status: Farmeando..."
+        tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+
+        while utils.isCurrent() and tabs.fast.ChaosData.Running
+            and tabs.fast.ChaosData.Strength.Value < targetStrength do
+            pcall(function()
+                for i = 1, repsPerBurst do
+                    utils.remotes.MuscleEvent:FireServer("rep")
+                end
+            end)
+            task.wait(0.05)
+            tabs.fast.ChaosStats.Text = "Rebirths: "
+                .. utils.formatWithCommas(tabs.fast.ChaosData.Rebirths.Value)
+                .. " | Gained: "
+                .. utils.formatWithCommas(tabs.fast.ChaosData.Rebirths.Value - startRebirths)
+        end
+
+        -- PASO 3: EQUIPAR REBIRTH PETS (rápido)
+        if utils.isCurrent() and tabs.fast.ChaosData.Running
+            and tabs.fast.ChaosData.Strength.Value >= targetStrength then
+
+            tabs.fast.ChaosStatus.Text = "Status: Equipando Tribal..."
+            tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 150, 255)
+            
+            local equippedReb = 0
+            pcall(function()
+                equippedReb = tabs.fast.equipPets(tabs.fast.ChaosData.RebirthPets)
+            end)
+            
+            tabs.fast.ChaosStatus.Text = "Status: " .. equippedReb .. " Tribal equipados"
+            task.wait(0.5)  -- ⚡ Antes 3s
+
+            -- PASO 4: REBIRTH
+            tabs.fast.ChaosStatus.Text = "Status: Haciendo Rebirth..."
+            tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 200, 80)
+
+            local rebirthBefore = tabs.fast.ChaosData.Rebirths.Value
+            local attempts = 0
+
+            repeat
+                pcall(function()
+                    services.ReplicatedStorage.rEvents.rebirthRemote:InvokeServer("rebirthRequest")
+                end)
+                task.wait(0.05)
+                attempts = attempts + 1
+            until not tabs.fast.ChaosData.Running
+                or tabs.fast.ChaosData.Rebirths.Value > rebirthBefore
+                or attempts >= 50
+
+            if tabs.fast.ChaosData.Rebirths.Value > rebirthBefore then
+                tabs.fast.ChaosData.TotalRebirths = tabs.fast.ChaosData.TotalRebirths +
+                    (tabs.fast.ChaosData.Rebirths.Value - rebirthBefore)
+            end
+            
+            task.wait(0.5)  -- ⚡ Antes 3s
+        end
+        task.wait(0.1)  -- ⚡ Antes 1s
+    end
+    tabs.fast.ChaosData.WorkerActive = false
+end
+
+tabs.fast:AddTextBox("Chaos - Target rebirths (0 = inf):", function(text)
+    local num = tonumber(text)
+    if num and num >= 0 then
+        tabs.fast.ChaosData.TargetRebirths = math.floor(num)
+    end
+end, {clear = false})
+
+tabs.fast.ChaosToggle = tabs.fast:AddSwitch("Fast Rebirth Chaos Overlords", function(state)
+    tabs.fast.ChaosData.Running = state
+    if state then
+        tabs.fast.ChaosStatus.Text = "Status: Iniciando Chaos..."
+        tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(80, 255, 120)
+        if not tabs.fast.ChaosData.WorkerActive then
+            tabs.fast.ChaosData.WorkerActive = true
+            task.spawn(tabs.fast.ChaosWorker)
+        end
+    else
+        tabs.fast.ChaosStatus.Text = "Status: Inactive"
+        tabs.fast.ChaosStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+    end
+end)
+
+tabs.fast:AddLabel("Swift Samurai > Farm > Tribal Overlord > Rebirth")
