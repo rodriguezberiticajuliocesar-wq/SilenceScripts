@@ -3377,57 +3377,109 @@ for _, gym in ipairs(tabs.teleport.GymLocations) do
 	end)
 end
 
-tabs.stats:AddLabel("Elapsed Time:")
-
+-- =========================================================
+-- PESTAÑA: STATS TIEMPO REAL (Fuerza y Rebirths)
+-- =========================================================
 tabs.stats.Data = {
-	StopwatchLabel = tabs.stats:AddLabel("0d 0h 0m 0s"),
 	StartTime = tick(),
-	Leaderstats = utils.playerData.Player:WaitForChild("leaderstats"),
-	Stats = {},
-	InitialValues = {},
-	StatLabels = {}
+	StartStrength = utils.playerData.Player:WaitForChild("leaderstats"):WaitForChild("Strength").Value,
+	StartRebirths = utils.playerData.Player:WaitForChild("leaderstats"):WaitForChild("Rebirths").Value,
+	Labels = {}
 }
 
-tabs.stats:AddLabel("Stats:")
-
-task.spawn(function()
-	while utils.isCurrent() and true do
-		tabs.stats.runtime.elapsedTime = tick() - tabs.stats.Data.StartTime
-		tabs.stats.runtime.days = math.floor(tabs.stats.runtime.elapsedTime / (24 * 3600))
-		tabs.stats.runtime.hours = math.floor((tabs.stats.runtime.elapsedTime % (24 * 3600)) / 3600)
-		tabs.stats.runtime.minutes = math.floor((tabs.stats.runtime.elapsedTime % 3600) / 60)
-		tabs.stats.runtime.seconds = math.floor(tabs.stats.runtime.elapsedTime % 60)
-		tabs.stats.Data.StopwatchLabel.Text = string.format("%dd %dh %dm %ds", tabs.stats.runtime.days, tabs.stats.runtime.hours, tabs.stats.runtime.minutes, tabs.stats.runtime.seconds)
-		task.wait(0.1)
+local function formatStat(n)
+	if n == nil or n ~= n then return "0" end
+	local absN = math.abs(n)
+	local sign = n < 0 and "-" or ""
+	
+	if absN >= 1e18 then return sign .. string.format("%.2fqi", absN / 1e18)
+	elseif absN >= 1e15 then return sign .. string.format("%.2fqa", absN / 1e15)
+	elseif absN >= 1e12 then return sign .. string.format("%.2ft", absN / 1e12)
+	elseif absN >= 1e9 then return sign .. string.format("%.2fb", absN / 1e9)
+	elseif absN >= 1e6 then return sign .. string.format("%.2fm", absN / 1e6)
+	elseif absN >= 1e3 then return sign .. string.format("%.2fk", absN / 1e3)
+	elseif absN >= 1 then return sign .. string.format("%.0f", absN)
+	else return sign .. string.format("%.2f", absN)
 	end
-end)
-
-tabs.stats.Data.Stats = {
-	{name = tabs.specs.Data.EmojiMap["Strength"] .. " Strength", stat = tabs.stats.Data.Leaderstats:WaitForChild("Strength")},
-	{name = tabs.specs.Data.EmojiMap["Rebirths"] .. " Rebirths", stat = tabs.stats.Data.Leaderstats:WaitForChild("Rebirths")},
-	{name = tabs.specs.Data.EmojiMap["Durability"] .. " Durability", stat = utils.playerData.Player:WaitForChild("Durability")},
-	{name = tabs.specs.Data.EmojiMap["Kills"] .. " Kills", stat = tabs.stats.Data.Leaderstats:WaitForChild("Kills")},
-	{name = tabs.specs.Data.EmojiMap["Agility"] .. " Agility", stat = utils.playerData.Player:WaitForChild("Agility")},
-	{name = tabs.specs.Data.EmojiMap["Evil Karma"] .. " Evil Karma", stat = utils.playerData.Player:WaitForChild("evilKarma")},
-	{name = tabs.specs.Data.EmojiMap["Good Karma"] .. " Good Karma", stat = utils.playerData.Player:WaitForChild("goodKarma")},
-	{name = tabs.specs.Data.EmojiMap["Brawls"] .. " Brawls", stat = tabs.stats.Data.Leaderstats:WaitForChild("Brawls")}
-}
-
-for _, info in ipairs(tabs.stats.Data.Stats) do
-	tabs.stats.Data.InitialValues[info.name] = info.stat.Value
-	tabs.stats.Data.StatLabels[info.name] = tabs.stats:AddLabel("")
 end
 
+local function formatTiempo(segundos)
+	if segundos < 60 then return string.format("%ds", math.floor(segundos))
+	elseif segundos < 3600 then return string.format("%dm %ds", math.floor(segundos / 60), math.floor(segundos % 60))
+	elseif segundos < 86400 then return string.format("%dh %dm", math.floor(segundos / 3600), math.floor((segundos % 3600) / 60))
+	else return string.format("%dd %dh", math.floor(segundos / 86400), math.floor((segundos % 86400) / 3600))
+	end
+end
+
+tabs.stats:AddLabel("========================================")
+tabs.stats:AddLabel("        📊 MÉTRICAS EN TIEMPO REAL")
+tabs.stats:AddLabel("========================================")
+
+tabs.stats:AddLabel("")
+tabs.stats:AddLabel("💪 FUERZA (Strength)")
+tabs.stats.Data.Labels.StrengthGained = tabs.stats:AddLabel("   Ganado: 0")
+tabs.stats.Data.Labels.StrengthHour = tabs.stats:AddLabel("   x 1 Hora: 0")
+tabs.stats.Data.Labels.StrengthDay = tabs.stats:AddLabel("   x 1 Día: 0")
+tabs.stats.Data.Labels.StrengthWeek = tabs.stats:AddLabel("   x 1 Semana: 0")
+tabs.stats.Data.Labels.StrengthMonth = tabs.stats:AddLabel("   x 1 Mes: 0")
+tabs.stats.Data.Labels.StrengthYear = tabs.stats:AddLabel("   x 1 Año: 0")
+
+tabs.stats:AddLabel("----------------------------------------")
+
+tabs.stats:AddLabel("🔄 REBIRTHS")
+tabs.stats.Data.Labels.RebirthsGained = tabs.stats:AddLabel("   Ganado: 0")
+tabs.stats.Data.Labels.RebirthsHour = tabs.stats:AddLabel("   x 1 Hora: 0")
+tabs.stats.Data.Labels.RebirthsDay = tabs.stats:AddLabel("   x 1 Día: 0")
+tabs.stats.Data.Labels.RebirthsWeek = tabs.stats:AddLabel("   x 1 Semana: 0")
+tabs.stats.Data.Labels.RebirthsMonth = tabs.stats:AddLabel("   x 1 Mes: 0")
+tabs.stats.Data.Labels.RebirthsYear = tabs.stats:AddLabel("   x 1 Año: 0")
+
+tabs.stats:AddLabel("----------------------------------------")
+tabs.stats.Data.Labels.TiempoSesion = tabs.stats:AddLabel("⏱️ Tiempo en sesión: 0s")
+tabs.stats:AddLabel("========================================")
+
 task.spawn(function()
-	while utils.isCurrent() and true do
-		for _, info in ipairs(tabs.stats.Data.Stats) do
-			tabs.stats.runtime.currentValue = info.stat.Value
-			tabs.stats.runtime.gained = tabs.stats.runtime.currentValue - tabs.stats.Data.InitialValues[info.name]
-			tabs.stats.Data.StatLabels[info.name].Text = string.format("%s: %s (%s) | Gained: %s (%s)", info.name,
-				utils.formatNumber(tabs.stats.runtime.currentValue), utils.formatWithCommas(tabs.stats.runtime.currentValue),
-				utils.formatNumber(tabs.stats.runtime.gained), utils.formatWithCommas(tabs.stats.runtime.gained))
+	while utils.isCurrent() do
+		local now = tick()
+		local elapsed = now - tabs.stats.Data.StartTime
+		
+		if elapsed > 0.5 then
+			local currentStrength = utils.playerData.Player.leaderstats.Strength.Value
+			local currentRebirths = utils.playerData.Player.leaderstats.Rebirths.Value
+			
+			local gainStrength = currentStrength - tabs.stats.Data.StartStrength
+			local gainRebirths = currentRebirths - tabs.stats.Data.StartRebirths
+			
+			local function getRates(gain, time)
+				local perHour = (gain / time) * 3600
+				local perDay = perHour * 24
+				local perWeek = perDay * 7
+				local perMonth = perDay * 30
+				local perYear = perDay * 365
+				return perHour, perDay, perWeek, perMonth, perYear
+			end
+			
+			local sHour, sDay, sWeek, sMonth, sYear = getRates(gainStrength, elapsed)
+			local rHour, rDay, rWeek, rMonth, rYear = getRates(gainRebirths, elapsed)
+			
+			tabs.stats.Data.Labels.StrengthGained.Text = "   Ganado: " .. formatStat(gainStrength)
+			tabs.stats.Data.Labels.StrengthHour.Text = "   x 1 Hora: " .. formatStat(sHour)
+			tabs.stats.Data.Labels.StrengthDay.Text = "   x 1 Día: " .. formatStat(sDay)
+			tabs.stats.Data.Labels.StrengthWeek.Text = "   x 1 Semana: " .. formatStat(sWeek)
+			tabs.stats.Data.Labels.StrengthMonth.Text = "   x 1 Mes: " .. formatStat(sMonth)
+			tabs.stats.Data.Labels.StrengthYear.Text = "   x 1 Año: " .. formatStat(sYear)
+			
+			tabs.stats.Data.Labels.RebirthsGained.Text = "   Ganado: " .. formatStat(gainRebirths)
+			tabs.stats.Data.Labels.RebirthsHour.Text = "   x 1 Hora: " .. formatStat(rHour)
+			tabs.stats.Data.Labels.RebirthsDay.Text = "   x 1 Día: " .. formatStat(rDay)
+			tabs.stats.Data.Labels.RebirthsWeek.Text = "   x 1 Semana: " .. formatStat(rWeek)
+			tabs.stats.Data.Labels.RebirthsMonth.Text = "   x 1 Mes: " .. formatStat(rMonth)
+			tabs.stats.Data.Labels.RebirthsYear.Text = "   x 1 Año: " .. formatStat(rYear)
+			
+			tabs.stats.Data.Labels.TiempoSesion.Text = "⏱️ Tiempo en sesión: " .. formatTiempo(elapsed)
 		end
-		task.wait(0.1)
+		
+		task.wait(0.5)
 	end
 end)
 tabs.info:Show()
