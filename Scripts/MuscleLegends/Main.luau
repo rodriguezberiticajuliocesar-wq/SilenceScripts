@@ -4108,3 +4108,64 @@ tabs.fast.ChaosToggle = tabs.fast:AddSwitch("Fast Rebirth Chaos Overlords", func
 end)
 
 tabs.fast:AddLabel("Swift Samurai > Farm > Tribal Overlord > Rebirth")
+-- =========================================================
+-- ANTI-AFK INDEPENDIENTE (No afecta nada más)
+-- =========================================================
+task.spawn(function()
+	task.wait(3) -- Esperamos a que todo cargue
+
+	local player = services.Players.LocalPlayer
+
+	-- Variable global para activar/desactivar
+	_G.HonenxAntiAFK = true
+
+	-- Loop principal que evita el kick por inactividad
+	task.spawn(function()
+		while utils.isCurrent() do
+			task.wait(60) -- Cada 60 segundos (Roblox kickea a los 20 min)
+			if _G.HonenxAntiAFK then
+				pcall(function()
+					services.VirtualUser:CaptureController()
+					services.VirtualUser:ClickButton2(Vector2.new(0, 0))
+					services.VirtualUser:ClickButton1(Vector2.new(0, 0))
+				end)
+			end
+		end
+	end)
+
+	-- También forzamos el anti-AFK cada vez que Roblox detecta Idle
+	utils.connect(player.Idled, function()
+		if _G.HonenxAntiAFK then
+			pcall(function()
+				services.VirtualUser:CaptureController()
+				services.VirtualUser:ClickButton2(Vector2.new(0, 0))
+				services.VirtualUser:ClickButton1(Vector2.new(0, 0))
+			end)
+		end
+	end)
+
+	-- Añadimos el switch a la pestaña Main (si existe)
+	if tabs and tabs.main then
+		tabs.main:AddLabel("")
+		tabs.main:AddLabel("🛡️ Anti-AFK:")
+		tabs.main.AntiAFKSwitch = tabs.main:AddSwitch("Anti AFK (Activado)", function(state)
+			_G.HonenxAntiAFK = state
+			if state then
+				game.StarterGui:SetCore("SendNotification", {
+					Title = "Anti-AFK",
+					Text = "✅ Activado",
+					Duration = 3
+				})
+			else
+				game.StarterGui:SetCore("SendNotification", {
+					Title = "Anti-AFK",
+					Text = "❌ Desactivado",
+					Duration = 3
+				})
+			end
+		end)
+		tabs.main.AntiAFKSwitch:Set(true)
+	end
+
+	print("[HonenxWhite] Anti-AFK cargado correctamente.")
+end)
