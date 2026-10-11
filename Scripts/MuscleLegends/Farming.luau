@@ -1390,7 +1390,7 @@ tabs.boss.hasTrainingStats = function(strength, durability)
 	return strength and durability and strength.Value > 0 and durability.Value > 0
 end
 
-tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool, backpack)
+tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool, backpack, toolName)
 	if not boss.Data.Preparation then
 		tabs.boss.pauseTraining()
 		boss.Data.Preparation = {LastRep = 0}
@@ -1408,6 +1408,8 @@ tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool
 		preparation.Rebirths = tabs.rebirths.rebirths.Value
 		preparation.StartedAt = nil
 		preparation.Detached = false
+		preparation.PetsReady = nil
+		preparation.LastRep = 0
 		preparation.Required = not tabs.boss.hasTrainingStats()
 	end
 	if not humanoid or humanoid.Health <= 0 then
@@ -1433,14 +1435,24 @@ tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool
 	end
 	if lp.player.Character ~= character or humanoid.Health <= 0 then return false end
 	backpack = lp.player:FindFirstChild("Backpack")
-	tool = character:FindFirstChild("Pushups") or backpack and backpack:FindFirstChild("Pushups")
-	if not tool then boss.StatusLabel.Text = "Status: Waiting for Pushups" return false end
+	toolName = tabs.rebirths.strength.Value < 2000 and "Weight" or "Pushups"
+	if toolName == "Weight" then preparation.StartedAt = nil end
+	tool = character:FindFirstChild(toolName) or backpack and backpack:FindFirstChild(toolName)
+	if not tool then
+		preparation.StartedAt = nil
+		boss.StatusLabel.Text = "Status: Waiting for " .. toolName
+		return false
+	end
 	if tool.Parent ~= character then humanoid:EquipTool(tool) end
-	if tool.Parent ~= character then return false end
-	preparation.StartedAt = preparation.StartedAt or os.clock()
+	if tool.Parent ~= character then preparation.StartedAt = nil return false end
+	if toolName == "Pushups" then preparation.StartedAt = preparation.StartedAt or os.clock() end
 	if os.clock() - preparation.LastRep >= 0.1 then
 		services.muscleEvent:FireServer("rep")
 		preparation.LastRep = os.clock()
+	end
+	if toolName == "Weight" then
+		boss.StatusLabel.Text = "Status: Weight Training | " .. formatCurrentStat(tabs.rebirths.strength.Value) .. " / 2K Strength"
+		return false
 	end
 	boss.StatusLabel.Text = "Status: Training before Boss (" .. string.format("%.1f", math.max(0, tabs.boss.Data.PreparationSeconds - (os.clock() - preparation.StartedAt))) .. "s)"
 	if os.clock() - preparation.StartedAt < tabs.boss.Data.PreparationSeconds then return false end

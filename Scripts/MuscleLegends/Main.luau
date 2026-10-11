@@ -2575,39 +2575,61 @@ tabs.boss.hasTrainingStats = function(strength, durability)
 	return strength and durability and strength.Value > 0 and durability.Value > 0
 end
 
-tabs.boss.prepareForBoss = function(boss, preparation)
+tabs.boss.prepareForBoss = function(boss, preparation, character, humanoid, tool, backpack, toolName, strength)
 	if not boss.Data.Preparation then
-		tabs.boss.captureTraining()
-		if tabs.farming.RebirthData.IsAutoRebirthing then tabs.farming.RebirthData.Switch:Set(false) end
-		if tabs.farming.KingData.TeleportActive then tabs.farming.KingSwitch:Set(false) end
-		boss.Data.Preparation = {}
+		tabs.boss.pauseTraining()
+		boss.Data.Preparation = {LastRep = 0}
 		boss.Data.Phase = "Training"
 	end
 	preparation = boss.Data.Preparation
-	if preparation.Character ~= utils.playerData.Player.Character or preparation.Rebirths ~= tabs.farming.RebirthData.Rebirths.Value then
-		preparation.Character = utils.playerData.Player.Character
+	character = utils.playerData.Player.Character
+	humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if preparation.Character ~= character or preparation.Rebirths ~= tabs.farming.RebirthData.Rebirths.Value then
+		preparation.Character = character
 		preparation.Rebirths = tabs.farming.RebirthData.Rebirths.Value
 		preparation.StartedAt = nil
+		preparation.PetsReady = nil
+		preparation.LastRep = 0
 		preparation.Required = not tabs.boss.hasTrainingStats()
 	end
+	if not humanoid or humanoid.Health <= 0 then
+		preparation.StartedAt = nil
+		boss.StatusLabel.Text = "Status: Waiting for Respawn"
+		return false
+	end
 	if not preparation.Required then
-		boss.Data.FightCharacter = preparation.Character
-		boss.Data.FightRebirths = preparation.Rebirths
+		boss.Data.FightCharacter = character
+		boss.Data.FightRebirths = tabs.farming.RebirthData.Rebirths.Value
 		boss.Data.Preparation = nil
 		return true
 	end
-	tabs.boss.startSavedExercise(tabs.boss.Data.TrainingSnapshot, true)
-	if not tabs.boss.isTrainingReady(tabs.boss.Data.TrainingSnapshot, true) then
+	if utils.playerData.Player.Character ~= character or humanoid.Health <= 0 then return false end
+	backpack = utils.playerData.Player:FindFirstChild("Backpack")
+	strength = utils.playerData.Player.leaderstats:FindFirstChild("Strength")
+	if not strength then return false end
+	toolName = strength.Value < 2000 and "Weight" or "Pushups"
+	if toolName == "Weight" then preparation.StartedAt = nil end
+	tool = character:FindFirstChild(toolName) or backpack and backpack:FindFirstChild(toolName)
+	if not tool then
 		preparation.StartedAt = nil
-		boss.StatusLabel.Text = "Status: Waiting for Training"
+		boss.StatusLabel.Text = "Status: Waiting for " .. toolName
 		return false
 	end
-	preparation.StartedAt = preparation.StartedAt or os.clock()
-	boss.Data.Phase = "Training"
+	if tool.Parent ~= character then humanoid:EquipTool(tool) end
+	if tool.Parent ~= character then preparation.StartedAt = nil return false end
+	if toolName == "Pushups" then preparation.StartedAt = preparation.StartedAt or os.clock() end
+	if os.clock() - preparation.LastRep >= 0.1 then
+		utils.playerData.Player.muscleEvent:FireServer("rep")
+		preparation.LastRep = os.clock()
+	end
+	if toolName == "Weight" then
+		boss.StatusLabel.Text = "Status: Weight Training | " .. utils.formatNumber(strength.Value) .. " / 2K Strength"
+		return false
+	end
 	boss.StatusLabel.Text = "Status: Training before Boss (" .. string.format("%.1f", math.max(0, tabs.boss.Data.PreparationSeconds - (os.clock() - preparation.StartedAt))) .. "s)"
 	if os.clock() - preparation.StartedAt < tabs.boss.Data.PreparationSeconds then return false end
-	boss.Data.FightCharacter = preparation.Character
-	boss.Data.FightRebirths = preparation.Rebirths
+	boss.Data.FightCharacter = character
+	boss.Data.FightRebirths = tabs.farming.RebirthData.Rebirths.Value
 	boss.Data.Preparation = nil
 	return true
 end
