@@ -412,11 +412,12 @@ tabs.rebirths.maxSlots = 12
 tabs.rebirths.strengthTarget = 0
 tabs.rebirths.generation = 0
 tabs.rebirths.adaptive = {
-    TargetSeconds = 3.5,
+    TargetSeconds = 3,
     MinSeconds = 3,
-    MaxRate = 659,
-    SendRate = lp.player.MembershipType == Enum.MembershipType.Premium and 150 or 300,
-    StrengthPerRep = nil,
+    RepsPerAward = 5,
+    MaxRate = 3295,
+    SendRate = lp.player.MembershipType == Enum.MembershipType.Premium and 750 or 1500,
+    StrengthPerAward = nil,
     LastTrainingSeconds = nil
 }
 tabs.rebirths.rebirthValueBefore = tabs.rebirths.rebirths.Value
@@ -515,26 +516,21 @@ end
 tabs.rebirths.updateAdaptiveSpeed = function(cycle, now, elapsed, gain, sent, estimate, remainingSeconds, desiredRate)
     now = os.clock()
     elapsed = now - cycle.SampleAt
-    if elapsed < 0.5 then return end
+    if elapsed < 0.25 then return end
     gain = tabs.rebirths.strength.Value - cycle.SampleStrength
     sent = cycle.Sent - cycle.SampleSent
-    if gain > 0 and sent > 0 then
-        estimate = gain / sent
-        tabs.rebirths.adaptive.StrengthPerRep = tabs.rebirths.adaptive.StrengthPerRep
-            and tabs.rebirths.adaptive.StrengthPerRep * 0.65 + estimate * 0.35 or estimate
-        remainingSeconds = math.max(0.5, tabs.rebirths.adaptive.TargetSeconds - cycle.TrainingSeconds)
+    if gain > 0 and sent >= tabs.rebirths.adaptive.RepsPerAward then
+        estimate = gain * tabs.rebirths.adaptive.RepsPerAward / sent
+        tabs.rebirths.adaptive.StrengthPerAward = tabs.rebirths.adaptive.StrengthPerAward
+            and tabs.rebirths.adaptive.StrengthPerAward * 0.65 + estimate * 0.35 or estimate
+        remainingSeconds = math.max(0.25, tabs.rebirths.adaptive.TargetSeconds - cycle.TrainingSeconds)
         desiredRate = math.max(0, cycle.Target - tabs.rebirths.strength.Value)
-            / tabs.rebirths.adaptive.StrengthPerRep / remainingSeconds
+            / tabs.rebirths.adaptive.StrengthPerAward * tabs.rebirths.adaptive.RepsPerAward / remainingSeconds
         tabs.rebirths.adaptive.SendRate = math.clamp(desiredRate,
-            math.max(1, tabs.rebirths.adaptive.SendRate * 0.65),
-            math.min(tabs.rebirths.adaptive.MaxRate, tabs.rebirths.adaptive.SendRate * 1.35))
-    elseif gain < 0 then
-        cycle.SampleAt = now
-        cycle.SampleStrength = tabs.rebirths.strength.Value
-        cycle.SampleSent = cycle.Sent
+            math.max(1, tabs.rebirths.adaptive.SendRate * 0.5),
+            math.min(tabs.rebirths.adaptive.MaxRate, tabs.rebirths.adaptive.SendRate * 2))
+    elseif gain == 0 then
         return
-    elseif cycle.TrainingSeconds > tabs.rebirths.adaptive.TargetSeconds then
-        tabs.rebirths.adaptive.SendRate = math.min(tabs.rebirths.adaptive.MaxRate, tabs.rebirths.adaptive.SendRate * 1.15)
     end
     cycle.SampleAt = now
     cycle.SampleStrength = tabs.rebirths.strength.Value
@@ -554,10 +550,11 @@ tabs.rebirths.performRebirth = function(generation, cycle, now, character, human
         LastAt = os.clock(),
         TrainingSeconds = 0
     }
-    if tabs.rebirths.adaptive.StrengthPerRep then
+    if tabs.rebirths.adaptive.StrengthPerAward then
         tabs.rebirths.adaptive.SendRate = math.clamp(
             math.max(0, cycle.Target - tabs.rebirths.strength.Value)
-                / tabs.rebirths.adaptive.StrengthPerRep / tabs.rebirths.adaptive.TargetSeconds,
+                / tabs.rebirths.adaptive.StrengthPerAward * tabs.rebirths.adaptive.RepsPerAward
+                / tabs.rebirths.adaptive.TargetSeconds,
             1, tabs.rebirths.adaptive.MaxRate)
     end
     while tabs.rebirths.isCurrent(generation) and tabs.rebirths.rebirths.Value == cycle.Rebirths do
@@ -574,7 +571,8 @@ tabs.rebirths.performRebirth = function(generation, cycle, now, character, human
                 cycle.Tokens = 0
             else
                 tabs.rebirths.updateAdaptiveSpeed(cycle)
-                cycle.Tokens = math.min(24, cycle.Tokens + tabs.rebirths.adaptive.SendRate * math.min(0.1, elapsed))
+                cycle.Tokens = math.min(math.ceil(tabs.rebirths.adaptive.MaxRate * 0.1),
+                    cycle.Tokens + tabs.rebirths.adaptive.SendRate * math.min(0.1, elapsed))
                 while cycle.Tokens >= 1 and tabs.rebirths.isCurrent(generation)
                     and tabs.rebirths.strength.Value < cycle.Target do
                     services.muscleEvent:FireServer("rep")
@@ -596,9 +594,10 @@ tabs.rebirths.performRebirth = function(generation, cycle, now, character, human
     if not tabs.rebirths.isCurrent(generation) or tabs.rebirths.rebirths.Value ~= cycle.Rebirths then return end
     if tabs.rebirths.strength.Value < cycle.Target then return end
     if cycle.Sent > 0 and tabs.rebirths.strength.Value > cycle.StartStrength then
-        estimate = (tabs.rebirths.strength.Value - cycle.StartStrength) / cycle.Sent
-        tabs.rebirths.adaptive.StrengthPerRep = tabs.rebirths.adaptive.StrengthPerRep
-            and tabs.rebirths.adaptive.StrengthPerRep * 0.5 + estimate * 0.5 or estimate
+        estimate = (tabs.rebirths.strength.Value - cycle.StartStrength)
+            * tabs.rebirths.adaptive.RepsPerAward / cycle.Sent
+        tabs.rebirths.adaptive.StrengthPerAward = tabs.rebirths.adaptive.StrengthPerAward
+            and tabs.rebirths.adaptive.StrengthPerAward * 0.5 + estimate * 0.5 or estimate
     end
     tabs.rebirths.adaptive.LastTrainingSeconds = cycle.ReachedAt or cycle.TrainingSeconds
     tabs.rebirths.adaptive.SendRate = math.clamp(tabs.rebirths.adaptive.SendRate
