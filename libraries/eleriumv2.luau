@@ -22,7 +22,7 @@ do
 		end
 	end
 
-	destroyImguiIn(game:GetService("CoreGui"))
+	pcall(function() destroyImguiIn(game:GetService("CoreGui")) end)
 
 	local Players = game:GetService("Players")
 	if Players and Players.LocalPlayer then
@@ -115,12 +115,19 @@ local title4Label = Instance.new("TextLabel")
 local inputButton = Instance.new("TextButton")
 local inputRoundify4px = Instance.new("ImageLabel")
 local windowsFrame = Instance.new("Frame")
-local cloneref = cloneref and cloneref or function(...) return ... end
-local CoreGui= cloneref(game:GetService("CoreGui"))
+local cloneref = type(cloneref) == "function" and cloneref or function(...) return ... end
+local CoreGui
+pcall(function() CoreGui = game:GetService("CoreGui") end)
+if CoreGui then pcall(function() CoreGui = cloneref(CoreGui) end) end
 
 
 imgui.Name = "imgui"
-imgui.Parent = gethui and gethui() or (CoreGui or game.Players.LocalPlayer:WaitForChild("PlayerGui"))
+imgui.ResetOnSpawn = false
+if type(gethui) == "function" then
+	pcall(function() imgui.Parent = gethui() end)
+end
+if not imgui.Parent and CoreGui then pcall(function() imgui.Parent = CoreGui end) end
+if not imgui.Parent then imgui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end
 prefabs.Name = "Prefabs"
 prefabs.Parent = imgui
 prefabs.BackgroundColor3 = Color3.new(1, 1, 1)
